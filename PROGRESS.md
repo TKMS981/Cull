@@ -28,7 +28,11 @@ _Last updated: 2026-11-26_
   - Live Photo: `PHLivePhotoView` with a hint playback; touch-and-hold plays it fully.
   - `AssetInfoSheet`: date, file name, type, camera, lens, exposure, resolution/MP, duration, file size, format, map.
   - `TrashView`: grid, multi-select, select all, restore (re-queues into the active session), delete (system confirmation → Recently Deleted).
-- **Tooling**: `Scripts/seed_simulator.sh` generates and seeds test media (EXIF photos, a video, a Live Photo pair).
+- **Tooling**: `Scripts/seed_simulator.sh` generates and seeds test media (EXIF photos, a video, a Live Photo pair). `Scripts/make_app_icon.swift` regenerates the app icon.
+- **Performance**: `CullSession.load()` and the album counts now run in `@concurrent` functions, off the main actor.
+- **Localization**: String Catalogs (`Cull/Localizable.xcstrings`, `Cull/InfoPlist.xcstrings`). Source language is Japanese, with English translations. Development region is `ja`.
+- **Bundle hygiene**: `Config/Local.xcconfig(.example)`, the entitlements file and the test plan are excluded from the app target's synchronized folders, so they never ship inside the app.
+- **App icon**: light, dark and tinted variants.
 
 ## Verified
 - **Build**: `build_sim` / `build_run_sim` succeed with no warnings (Xcode 27.2, iPhone 18 Pro, iOS 27.2).
@@ -42,24 +46,28 @@ _Last updated: 2026-11-26_
 - **Simulator, by hand with MobileBuildMCP**:
   - Swipes and the trash badge work.
   - The info sheet shows EXIF.
-  - The trash delete shows the iOS confirmation dialog; cancelling keeps the item.
   - Video autoplays, and the mute toggle works.
   - The Live Photo card shows its LIVE badge, and swipe works over it.
   - Undo works from the finished screen.
-  - Kept items are skipped after relaunch (the setup count excludes them).
+  - Kept items are skipped after relaunch.
+  - Trash delete, cancelled: the item stays in the trash.
+  - Trash delete, **allowed**: the asset is removed from the library and Cull's trash empties.
+  - Permission gate: the "not determined" screen appears, then the system prompt with the usage description.
+  - **Limited access**: the banner and "Manage Accessible Photos" appear, and the system limited picker opens.
+  - English UI on an English-locale simulator.
+  - Dark mode.
 
 ## Not verified / known gaps
-- Limited-access flow (`presentLimitedLibraryPicker`) was not exercised; tests ran with full access.
-- Confirming a delete was not run on purpose (only cancel). The success path (`store.clear` + change-observer prune) has only been checked by reading the code.
+- Limited picker: selecting items inside it couldn't be automated, because the picker runs out of process and AXe can't see it. Whether the count refreshes after the selection changes has only been checked by reading the code: the change observer fires and the setup screen recounts.
 - Live Photo audio and touch-and-hold playback were not checked; the synthetic clip has no audio.
-- No performance profiling on a large (10k+) library. `CullSession.load()` enumerates the fetch result on the main actor once per session.
-- iPad and landscape are not supported (iPhone portrait only, by design for now).
-- UI strings are Japanese literals; no String Catalog or English localization yet.
-- Not pushed: the local commits after `chore: initial project setup` are not on GitHub yet.
+- No measured profiling on a 10k+ library. The heavy work is now off the main actor, but it hasn't been timed.
+- With `.accessibilityElement(children: .ignore)` on the card, the Live Photo's UIKit subview and LIVE label still appear as separate elements in AXe snapshots. Check with VoiceOver.
+- Plural forms in English use "items" for every count; there are no plural variants in the catalog yet.
+- iPhone portrait only.
 
 ## Next time, start here
-1. `git log --oneline`, then boot the simulator and run `Scripts/seed_simulator.sh` if the library was erased.
-2. In MobileBuildMCP, run `session_show_defaults`, then `test_sim`, to confirm a green baseline.
-3. Check the limited-access flow: reset privacy (`xcrun simctl privacy <udid> reset photos com.example.Cull`), choose "Limit Access…" at the prompt, then use "アクセスできる写真を管理" (manage accessible photos).
-4. Profile `CullSession.load()` with a large seeded library. If it's slow, move the enumeration to a `@concurrent` helper that returns identifiers.
-5. Review, then push: `git push origin main`.
+1. `git pull`, then boot the simulator and run `Scripts/seed_simulator.sh` if the library was erased.
+2. In MobileBuildMCP, run `session_show_defaults`, then `test_sim`. The baseline is 18/18 passing.
+3. Check VoiceOver on the Live Photo card; hide the inner `PHLivePhotoView` from accessibility if needed.
+4. Add plural variants to `Localizable.xcstrings`, e.g. "Sorted 1 item" vs "Sorted %lld items".
+5. Seed a large library (e.g. a loop over `simctl addmedia`) and profile `CullSession.load()` and the setup count in Instruments.
