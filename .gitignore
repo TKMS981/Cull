@@ -32,3 +32,13 @@ TestMedia/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Xcode / packaging extras
+*.hmap
+timeline.xctimeline
+playground.xcworkspace
+Carthage/Build/
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output

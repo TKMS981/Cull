@@ -1,10 +1,15 @@
 schemaVersion: 1
-# simulator: build/run/test/screenshot  ui-automation: tap/swipe/snapshot (AXe)
-# simulator-management: boot/erase/privacy/media  debugging: LLDB
-# project-scaffolding: Xcode project templates (initial setup)
-enabledWorkflows: ['simulator', 'simulator-management', 'ui-automation', 'debugging', 'project-scaffolding']
+enabledWorkflows:
+  - simulator
+  - simulator-management
+  - ui-automation
+  - debugging
+  - project-scaffolding
 sentryDisabled: true
 sessionDefaults:
-  simulatorName: 'iPhone 18 Pro'
-  platform: 'iOS'
+  simulatorName: iPhone 18 Pro
   useLatestOS: true
+  platform: iOS
+  workspacePath: Cull.xcworkspace
+  scheme: Cull
+  bundleId: com.example.Cull

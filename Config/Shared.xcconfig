@@ -1,0 +1,34 @@
+// Shared.xcconfig
+// Public-safe defaults. Personal signing values (Team ID, your own bundle ID)
+// go in Config/Local.xcconfig, which is gitignored. See Local.xcconfig.example.
+
+// Project Identity
+PRODUCT_NAME = Cull
+PRODUCT_DISPLAY_NAME = Cull
+PRODUCT_BUNDLE_IDENTIFIER = com.example.Cull
+MARKETING_VERSION = 1.0
+CURRENT_PROJECT_VERSION = 1
+
+// Signing: intentionally empty in the repo. Simulator builds need no team.
+DEVELOPMENT_TEAM =
+CODE_SIGN_STYLE = Automatic
+
+// Platform
+IPHONEOS_DEPLOYMENT_TARGET = 27.0
+TARGETED_DEVICE_FAMILY = 1
+
+// Swift
+SWIFT_VERSION = 6.0
+SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor
+SWIFT_APPROACHABLE_CONCURRENCY = YES
+
+// Info.plist
+GENERATE_INFOPLIST_FILE = YES
+INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait
+INFOPLIST_KEY_NSPhotoLibraryUsageDescription = Cull shows your photos and videos one at a time so you can keep them or move them to Cull's trash, and deletes the ones you choose.
+
+// Entitlements
+CODE_SIGN_ENTITLEMENTS = Config/Cull.entitlements
+
+// Local overrides (gitignored, optional)
+#include? "Local.xcconfig"
