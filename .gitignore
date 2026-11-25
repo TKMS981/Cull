@@ -1,0 +1,34 @@
+# macOS
+.DS_Store
+
+# Xcode user-specific
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# Local signing / secrets (see Config/Local.xcconfig.example)
+Config/Local.xcconfig
+.env
+.env.*
+
+# Build artifacts
+DerivedData/
+.derivedData/
+build/
+*.xcresult
+*.trace
+*.ipa
+*.dSYM
+*.dSYM.zip
+*.xcarchive
+
+# SwiftPM
+.build/
+.swiftpm/
+
+# Personal test media (simctl addmedia seeds)
+TestMedia/
+
+# Claude Code local settings
+.claude/settings.local.json
