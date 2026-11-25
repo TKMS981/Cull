@@ -70,7 +70,7 @@ struct CullView: View {
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("残り \(session.remaining) 件、全 \(session.total) 件")
-            .accessibilityValue("\(session.remaining)")
+            .accessibilityValue(Text(session.remaining, format: .number))
             .accessibilityIdentifier("progress")
         }
     }
@@ -94,7 +94,7 @@ struct CullView: View {
                 }
         }
         .accessibilityLabel("ゴミ箱")
-        .accessibilityValue("\(store.trash.count) 件")
+        .accessibilityValue(Text(store.trash.count, format: .number))
         .accessibilityIdentifier("trashButton")
     }
 
@@ -230,7 +230,11 @@ struct CullView: View {
                     Button {
                         isMuted.toggle()
                     } label: {
-                        Label(isMuted ? "サウンドをオン" : "サウンドをオフ", systemImage: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        Label {
+                            isMuted ? Text("サウンドをオン") : Text("サウンドをオフ")
+                        } icon: {
+                            Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        }
                     }
                     .accessibilityIdentifier("muteButton")
                 }
@@ -253,7 +257,7 @@ struct CullView: View {
         ContentUnavailableView {
             Label("すべて整理しました", systemImage: "checkmark.seal")
         } description: {
-            Text(session.total == 0 ? "条件に一致する未整理の写真はありません。" : "\(session.total) 件を整理しました。")
+            session.total == 0 ? Text("条件に一致する未整理の写真はありません。") : Text("\(session.total) 件を整理しました。")
         } actions: {
             if session.canUndo {
                 Button("元に戻す") { session.undo() }

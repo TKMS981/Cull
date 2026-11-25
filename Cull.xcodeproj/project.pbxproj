@@ -30,10 +30,20 @@
 		8BD71C0A2DEE41E000CEDD92 /* Exceptions for "Config" folder in "Cull" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Cull.entitlements,
 				Debug.xcconfig,
+				Local.xcconfig,
+				Local.xcconfig.example,
 				Release.xcconfig,
 				Shared.xcconfig,
 				Tests.xcconfig,
+			);
+			target = 8B41F6442DEDD0D5001A66F9 /* Cull */;
+		};
+		C011A0000000000000000001 /* Exceptions for "Cull" folder in "Cull" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Cull.xctestplan,
 			);
 			target = 8B41F6442DEDD0D5001A66F9 /* Cull */;
 		};
@@ -42,6 +52,9 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		8B41F6472DEDD0D5001A66F9 /* Cull */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C011A0000000000000000001 /* Exceptions for "Cull" folder in "Cull" target */,
+			);
 			path = Cull;
 			sourceTree = "<group>";
 		};
@@ -178,9 +191,10 @@
 				};
 			};
 			buildConfigurationList = 8B41F6402DEDD0D5001A66F9 /* Build configuration list for PBXProject "Cull" */;
-			developmentRegion = en;
+			developmentRegion = ja;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				ja,
 				en,
 				Base,
 			);

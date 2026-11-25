@@ -36,7 +36,7 @@ struct TrashView: View {
                 }
             }
         }
-        .navigationTitle(isSelecting ? "\(selection.count) 件を選択" : "ゴミ箱")
+        .navigationTitle(isSelecting ? Text("\(selection.count) 件を選択") : Text("ゴミ箱"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar }
         .task(id: store.trash) {
@@ -91,17 +91,21 @@ struct TrashView: View {
     private var toolbar: some ToolbarContent {
         if !store.trash.isEmpty {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(isSelecting ? "完了" : "選択") {
+                Button {
                     isSelecting.toggle()
                     if !isSelecting { selection.removeAll() }
+                } label: {
+                    isSelecting ? Text("完了") : Text("選択")
                 }
                 .accessibilityIdentifier("selectButton")
             }
         }
         if isSelecting {
             ToolbarItem(placement: .bottomBar) {
-                Button(selection.count == entries.count ? "選択解除" : "すべて選択") {
+                Button {
                     selection = selection.count == entries.count ? [] : Set(entries.map(\.id))
+                } label: {
+                    selection.count == entries.count ? Text("選択解除") : Text("すべて選択")
                 }
             }
             ToolbarSpacer(.flexible, placement: .bottomBar)

@@ -123,11 +123,11 @@ final class CullUITests: XCTestCase {
         waitFor(progress, value: "\(initial - 1)")
         app.buttons["trashSwipeButton"].tap()
         waitFor(progress, value: "\(initial - 2)")
-        XCTAssertEqual(app.buttons["trashButton"].value as? String, "1 件")
+        XCTAssertEqual(app.buttons["trashButton"].value as? String, "1")
 
         app.buttons["undoButton"].tap()
         waitFor(progress, value: "\(initial - 1)")
-        XCTAssertEqual(app.buttons["trashButton"].value as? String, "0 件")
+        XCTAssertEqual(app.buttons["trashButton"].value as? String, "0")
         app.buttons["undoButton"].tap()
         waitFor(progress, value: "\(initial)")
         XCTAssertFalse(app.buttons["undoButton"].isEnabled)
