@@ -9,7 +9,7 @@ struct LibraryChange: @unchecked Sendable {
     let change: PHChange
 }
 
-struct AlbumInfo: Identifiable, Hashable {
+nonisolated struct AlbumInfo: Identifiable, Hashable, Sendable {
     let id: String
     let title: String
     let count: Int
@@ -51,7 +51,13 @@ final class PhotoLibraryService {
 
     // MARK: Fetching
 
-    func loadAlbums() {
+    func loadAlbums() async {
+        albums = await Self.fetchAlbums()
+    }
+
+    /// Album enumeration + per-album counts, off the main actor.
+    @concurrent
+    nonisolated static func fetchAlbums() async -> [AlbumInfo] {
         var result: [AlbumInfo] = []
         let assetOptions = PHFetchOptions()
         assetOptions.predicate = CullFilter().predicate
@@ -78,16 +84,11 @@ final class PhotoLibraryService {
                 guard count > 0 else { return }
                 result.append(AlbumInfo(id: collection.localIdentifier, title: collection.localizedTitle ?? "", count: count, isSmartAlbum: false))
             }
-        albums = result
+        return result
     }
 
     func fetchAssets(matching filter: CullFilter) -> PHFetchResult<PHAsset> {
-        let options = filter.fetchOptions
-        if let albumID = filter.albumID,
-           let collection = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [albumID], options: nil).firstObject {
-            return PHAsset.fetchAssets(in: collection, options: options)
-        }
-        return PHAsset.fetchAssets(with: options)
+        filter.fetchAssets()
     }
 
     /// Matches for `filter` minus the given IDs (kept/trashed). Uses a predicate-filtered

@@ -51,13 +51,13 @@ struct FilterSetupView: View {
             }
         }
         .safeAreaInset(edge: .bottom) { startButton }
-        .task { library.loadAlbums() }
+        .task { await library.loadAlbums() }
         .task(id: CountKey(filter: filter, includeKept: includeKept, kept: store.keptIDs.count, trashed: store.trash.count)) {
             updateCount()
         }
         .task {
             for await _ in library.changes() {
-                library.loadAlbums()
+                await library.loadAlbums()
                 updateCount()
             }
         }

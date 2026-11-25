@@ -46,20 +46,34 @@ final class CullSession {
 
     // MARK: Loading
 
-    func load() {
+    /// Fetches and filters off the main actor so large libraries don't hitch the UI.
+    func load() async {
         guard phase == .loading else { return }
-        let result = library.fetchAssets(matching: filter)
-        fetchResult = result
-        var items: [CullItem] = []
-        items.reserveCapacity(result.count)
-        let skip = skippedIDs
-        result.enumerateObjects { asset, _, _ in
-            if !skip.contains(asset.localIdentifier) { items.append(CullItem(asset: asset)) }
-        }
-        queue = CullQueue(items)
-        total = items.count
+        let loaded = await Self.fetchUndecided(filter: filter, skipping: skippedIDs)
+        guard phase == .loading else { return }
+        fetchResult = loaded.fetchResult
+        queue = CullQueue(loaded.assets.map(CullItem.init))
+        total = loaded.assets.count
         phase = .ready
         updateCache()
+    }
+
+    /// `PHFetchResult` and `PHAsset` are immutable, thread-safe PhotoKit snapshots
+    /// that aren't annotated `Sendable`; this box carries them back to the main actor.
+    nonisolated struct LoadedAssets: @unchecked Sendable {
+        let fetchResult: PHFetchResult<PHAsset>
+        let assets: [PHAsset]
+    }
+
+    @concurrent
+    nonisolated static func fetchUndecided(filter: CullFilter, skipping skip: Set<String>) async -> LoadedAssets {
+        let result = filter.fetchAssets()
+        var assets: [PHAsset] = []
+        assets.reserveCapacity(result.count)
+        result.enumerateObjects { asset, _, _ in
+            if !skip.contains(asset.localIdentifier) { assets.append(asset) }
+        }
+        return LoadedAssets(fetchResult: result, assets: assets)
     }
 
     private var skippedIDs: Set<String> {

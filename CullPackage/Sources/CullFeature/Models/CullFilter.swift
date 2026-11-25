@@ -2,7 +2,7 @@ import Foundation
 import Photos
 
 /// Attribute filters offered on the setup screen. Multiple selections are OR-ed together.
-public enum MediaAttribute: String, CaseIterable, Identifiable, Sendable, Codable {
+nonisolated public enum MediaAttribute: String, CaseIterable, Identifiable, Sendable, Codable {
     case screenshot
     case portrait
     case livePhoto
@@ -57,7 +57,7 @@ public enum MediaAttribute: String, CaseIterable, Identifiable, Sendable, Codabl
 
 /// What the user chose to cull. Album and date range AND with the attribute group;
 /// attributes OR with each other.
-public struct CullFilter: Hashable, Sendable {
+nonisolated public struct CullFilter: Hashable, Sendable {
     /// `PHAssetCollection.localIdentifier`, or `nil` for the whole library.
     public var albumID: String?
     public var dateRange: ClosedRange<Date>?
@@ -88,6 +88,15 @@ public struct CullFilter: Hashable, Sendable {
             parts.append(NSCompoundPredicate(orPredicateWithSubpredicates: ordered.map(\.predicate)))
         }
         return NSCompoundPredicate(andPredicateWithSubpredicates: parts)
+    }
+
+    /// Runs the fetch. Safe off the main actor: PhotoKit fetches are thread-safe.
+    public func fetchAssets() -> PHFetchResult<PHAsset> {
+        if let albumID,
+           let collection = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [albumID], options: nil).firstObject {
+            return PHAsset.fetchAssets(in: collection, options: fetchOptions)
+        }
+        return PHAsset.fetchAssets(with: fetchOptions)
     }
 
     public var fetchOptions: PHFetchOptions {

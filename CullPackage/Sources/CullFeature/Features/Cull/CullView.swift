@@ -46,7 +46,7 @@ struct CullView: View {
             } else {
                 let newSession = CullSession(filter: filter, includeKept: includeKept, library: library, store: store)
                 session = newSession
-                newSession.load()
+                await newSession.load()
             }
             for await change in library.changes() {
                 session?.apply(change)
