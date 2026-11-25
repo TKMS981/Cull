@@ -30,6 +30,6 @@ SwiftUI app for culling photos, videos and Live Photos one at a time by swiping.
 
 ## Verification
 - Build/run/screenshot/UI driving: MobileBuildMCP (project `.mcp.json`, workflows in `.mobilebuildmcp/config.yaml`). Default simulator: iPhone 18 Pro (iOS 27.2).
-- Seed the simulator photo library with `xcrun simctl addmedia <udid> <files>` before UI checks.
+- Seed the simulator photo library with `Scripts/seed_simulator.sh [udid]` (wraps `xcrun simctl addmedia`; creates photos with EXIF, a video and a Live Photo pair) before UI checks.
 - Pinch-zoom can't be driven by MobileBuildMCP/AXe (no multi-touch): verify zoom-disables-swipe with XCUITest `pinch(withScale:velocity:)`.
 - Unit tests: Swift Testing. UI tests: XCUITest.

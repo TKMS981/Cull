@@ -112,4 +112,24 @@ final class CullUITests: XCTestCase {
         card.swipeUp()
         XCTAssertTrue(app.descendants(matching: .any)["infoSheet"].waitForExistence(timeout: 5))
     }
+
+    @MainActor
+    func testKeepButtonsAndMultipleUndo() throws {
+        let (_, progress) = try startCulling()
+        let initial = remaining(progress)
+        XCTAssertGreaterThan(initial, 2)
+
+        app.buttons["keepButton"].tap()
+        waitFor(progress, value: "\(initial - 1)")
+        app.buttons["trashSwipeButton"].tap()
+        waitFor(progress, value: "\(initial - 2)")
+        XCTAssertEqual(app.buttons["trashButton"].value as? String, "1 件")
+
+        app.buttons["undoButton"].tap()
+        waitFor(progress, value: "\(initial - 1)")
+        XCTAssertEqual(app.buttons["trashButton"].value as? String, "0 件")
+        app.buttons["undoButton"].tap()
+        waitFor(progress, value: "\(initial)")
+        XCTAssertFalse(app.buttons["undoButton"].isEnabled)
+    }
 }

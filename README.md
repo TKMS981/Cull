@@ -34,11 +34,10 @@ Config/               xcconfig files
 
 ## Tests
 
-Seed the simulator first, then run the `Cull` scheme's tests:
+Seed the simulator first (generates synthetic photos with EXIF, a video and a Live Photo into gitignored `TestMedia/`, adds them and grants photo access), then run the `Cull` scheme's tests:
 
 ```sh
-xcrun simctl addmedia <udid> <some photos and a video>
-xcrun simctl privacy <udid> grant photos com.example.Cull
+Scripts/seed_simulator.sh            # booted simulator, or pass a UDID
 ```
 
 No third-party dependencies.
