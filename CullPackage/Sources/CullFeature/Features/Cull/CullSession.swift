@@ -133,6 +133,13 @@ final class CullSession {
         cached = wanted
     }
 
+    /// Re-warms the cache after `tearDown()` (e.g. coming back from the trash screen).
+    func resumeCaching() {
+        guard phase == .ready else { return }
+        cached = []
+        updateCache()
+    }
+
     func tearDown() {
         loader.stopCachingAll()
         cached = []

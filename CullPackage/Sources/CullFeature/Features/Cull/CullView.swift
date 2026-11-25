@@ -41,7 +41,9 @@ struct CullView: View {
                 .presentationDragIndicator(.visible)
         }
         .task {
-            if session == nil {
+            if let session {
+                session.resumeCaching()
+            } else {
                 let newSession = CullSession(filter: filter, includeKept: includeKept, library: library, store: store)
                 session = newSession
                 newSession.load()

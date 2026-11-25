@@ -90,6 +90,22 @@ final class PhotoLibraryService {
         return PHAsset.fetchAssets(with: options)
     }
 
+    /// Matches for `filter` minus the given IDs (kept/trashed). Uses a predicate-filtered
+    /// identifier fetch for the library case so it never enumerates the whole library.
+    func count(matching filter: CullFilter, excluding excluded: Set<String>) -> Int {
+        let total = fetchAssets(matching: filter)
+        guard !excluded.isEmpty, total.count > 0 else { return total.count }
+        if filter.albumID == nil {
+            let overlap = PHAsset.fetchAssets(withLocalIdentifiers: Array(excluded), options: filter.fetchOptions).count
+            return max(total.count - overlap, 0)
+        }
+        var count = 0
+        total.enumerateObjects { asset, _, _ in
+            if !excluded.contains(asset.localIdentifier) { count += 1 }
+        }
+        return count
+    }
+
     func assets(withIDs ids: [String]) -> [String: PHAsset] {
         guard !ids.isEmpty else { return [:] }
         var map: [String: PHAsset] = [:]

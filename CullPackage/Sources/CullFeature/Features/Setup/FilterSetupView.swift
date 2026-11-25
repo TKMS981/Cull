@@ -52,11 +52,13 @@ struct FilterSetupView: View {
         }
         .safeAreaInset(edge: .bottom) { startButton }
         .task { library.loadAlbums() }
-        .task(id: filter) { matchCount = library.fetchAssets(matching: filter).count }
+        .task(id: CountKey(filter: filter, includeKept: includeKept, kept: store.keptIDs.count, trashed: store.trash.count)) {
+            updateCount()
+        }
         .task {
             for await _ in library.changes() {
                 library.loadAlbums()
-                matchCount = library.fetchAssets(matching: filter).count
+                updateCount()
             }
         }
         .confirmationDialog("整理済み履歴をリセットしますか？", isPresented: $confirmReset, titleVisibility: .visible) {
@@ -64,6 +66,18 @@ struct FilterSetupView: View {
         } message: {
             Text("「保持」にした \(store.keptIDs.count) 件が再び整理対象になります。ゴミ箱の内容は変わりません。")
         }
+    }
+
+    private struct CountKey: Hashable {
+        let filter: CullFilter
+        let includeKept: Bool
+        let kept: Int
+        let trashed: Int
+    }
+
+    private func updateCount() {
+        let excluded = includeKept ? store.trashedIDs : store.keptIDs.union(store.trashedIDs)
+        matchCount = library.count(matching: filter, excluding: excluded)
     }
 
     private var limitedSection: some View {
@@ -155,7 +169,7 @@ struct FilterSetupView: View {
         } label: {
             VStack(spacing: 2) {
                 Text("整理を始める").font(.headline)
-                Text("該当 \(matchCount) 件").font(.caption).monospacedDigit()
+                Text("未整理 \(matchCount) 件").font(.caption).monospacedDigit()
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
