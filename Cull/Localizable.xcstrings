@@ -844,6 +844,46 @@
           }
         }
       }
+    },
+    "今月": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Month"
+          }
+        }
+      }
+    },
+    "先月": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last Month"
+          }
+        }
+      }
+    },
+    "クイックスタート": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick Start"
+          }
+        }
+      }
+    },
+    "よく使う条件をワンタップで設定します。もう一度タップすると解除します。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set a common filter in one tap. Tap it again to clear."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

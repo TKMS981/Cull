@@ -7,27 +7,36 @@ _Last updated: 2026-11-26_
   - `Config/Shared.xcconfig` holds public-safe defaults (`com.example.Cull`, empty `DEVELOPMENT_TEAM`, Swift 6, MainActor default isolation) and includes the gitignored `Config/Local.xcconfig`.
 - **Models**:
   - `CullFilter`: album, date range, attributes. Attributes are OR-ed together and AND-ed with the album and date range.
-  - `CullQueue`: pure queue with a multi-step undo history.
+  - `CullQueue`: pure queue with a multi-step undo history, plus per-decision counts for the session.
+  - `FilterPreset`: quick-start presets (screenshots, this month, last month, videos, Live Photos, favorites) that build a `CullFilter` and recognise their own filter, comparing dates by day.
 - **Persistence**: `DecisionStore` (SwiftData) keeps kept IDs, which are skipped next time, and Cull's trash. Both persist across launches. Kept history can be reset.
 - **Services**:
   - `PhotoLibraryService`: `.readWrite` auth, limited picker, album/asset fetch, `PHPhotoLibraryChangeObserver` fan-out.
   - `ImageLoader`: `PHCachingImageManager`. `.opportunistic` for cards, `.highQualityFormat` when zoomed, plus Live Photo and AVAsset requests.
   - `MetadataReader`: EXIF via `CGImageSource`, parsed in `@concurrent`.
   - `DeletionService`: `PHAssetChangeRequest.deleteAssets`.
+  - `AssetSizeReader`: per-asset size summed over all `PHAssetResource`s, read off the main actor. Uses the KVC `fileSize` key, guarded by `responds(to:)`.
 - **Screens**:
   - `CullRootView`: permission gate (not determined / denied / full / limited).
-  - `FilterSetupView`: album, dates, attributes, "show kept items again" toggle, reset history, undecided count, limited-access manage button.
+  - `FilterSetupView`: Quick Start preset chips (Liquid Glass; the active chip is highlighted, and tapping it again clears the filter), album, dates, attributes, "show kept items again" toggle, reset history, undecided count, limited-access manage button.
   - `CullView`:
-    - Swipe left = keep, swipe right = trash, swipe up = info. Keep/trash/undo/info buttons as well.
+    - Swipe left = keep, swipe right = trash, swipe up = info. Keep/trash/info buttons, plus a sound toggle for media with audio.
     - Multi-step undo.
-    - Progress header and trash badge.
-    - Next card shown behind the current one; pre-caches the next 3 and previous 2 assets.
+    - Top HUD: progress with this session's keep/trash tallies; undo and trash share one Liquid Glass group.
+    - Card stack: two cards wait behind the current one and step forward as it is dragged. Pre-caches the next 3 and previous 2 assets.
+    - While dragging, the card tilts, a KEEP / TRASH stamp fades and scales in, and a colour wash deepens.
+    - Haptics: a tick when the drag passes the threshold, distinct impacts for keep and trash, a soft one for undo, and success on the summary screen.
+    - Session summary when the queue empties: this run's keep and trash tiles, "Review Trash (N)" and "Change Filters".
     - Reconciles with outside library changes.
   - Zoom: pinch, pan, double-tap. While zoomed (scale > 1), left/right **and** up swipes are disabled.
   - Video: muted autoplay with looping; tap the card or the speaker button to toggle sound. Uses `AVPlayerLayer` because `VideoPlayer`'s controls swallow gestures.
   - Live Photo: `PHLivePhotoView` with a hint playback; touch-and-hold plays it fully.
   - `AssetInfoSheet`: date, file name, type, camera, lens, exposure, resolution/MP, duration, file size, format, map.
-  - `TrashView`: grid, multi-select, select all, restore (re-queues into the active session), delete (system confirmation → Recently Deleted).
+  - `TrashView`:
+    - Grid, multi-select (from the Select button), select all.
+    - Restore (re-queues into the active session); delete (system confirmation → Recently Deleted).
+    - "About N MB can be freed" header, for the whole trash or the selection.
+    - Tapping a cell opens a full-screen preview (zoom transition) that reuses the culling card, with restore and delete.
 - **Tooling**: `Scripts/seed_simulator.sh` generates and seeds test media (EXIF photos, a video, a Live Photo pair). `Scripts/make_app_icon.swift` regenerates the app icon.
 - **Performance**: `CullSession.load()` and the album counts now run in `@concurrent` functions, off the main actor.
 - **Localization**: String Catalogs (`Cull/Localizable.xcstrings`, `Cull/InfoPlist.xcstrings`). Source language is Japanese, with English translations. Development region is `ja`.
@@ -41,15 +50,18 @@ _Last updated: 2026-11-26_
 
 ## Verified
 - **Build**: `build_sim` / `build_run_sim` succeed with no warnings (Xcode 27.2, iPhone 18 Pro, iOS 27.2).
-- **Tests**: `test_sim` passes 21/21.
-  - 15 Swift Testing unit tests: queue/undo, filter predicates, SwiftData store (including "in-place caches match a fresh reload").
-  - 6 XCUITests:
+- **Tests**: `test_sim` passes 31/31.
+  - 22 Swift Testing unit tests: queue/undo/counts, filter predicates, SwiftData store (including "in-place caches match a fresh reload"), filter presets (month boundaries, matching).
+  - 9 XCUITests:
     - Pinch zoom disables left/right/up swipes; double-tap restores swiping.
     - Trash → restore re-queues the item.
     - Swipe up opens info.
     - Keep/trash buttons with two undos.
     - The Live Photo card is announced as "Live Photo".
     - English plural forms (one / other).
+    - Session summary tallies → Review Trash → Change Filters.
+    - Trash size header plus preview → restore.
+    - Quick Start presets apply, highlight and clear.
 - **10k-photo profiling** (Release build, separate simulator with 10,006 photos, `ContinuousClock` timing that was removed afterwards):
 
   | Operation | Before | After |
@@ -73,6 +85,9 @@ _Last updated: 2026-11-26_
   - Dark mode.
 
 ## Not verified / known gaps
+- The in-motion look of the stamps, tint and card stack, and the haptics, haven't been checked by hand. AXe can't hold a drag mid-gesture, and the simulator has no haptics.
+- The trash size uses `PHAssetResource`'s undocumented `fileSize` key. It is guarded, so a missing key just leaves the size out, but it isn't public API.
+- In selection mode, XCUITest reports trash cells as not hittable, so the test taps their centre directly. A real tap works.
 - Limited picker: selecting items inside it couldn't be automated, because the picker runs out of process and AXe can't see it. Whether the count refreshes after the selection changes has only been checked by reading the code: the change observer fires and the setup screen recounts.
 - Live Photo audio and touch-and-hold playback were not checked; the synthetic clip has no audio.
 - VoiceOver itself hasn't been run. On iOS 27, XCUITest and AXe list `.accessibilityHidden` and `children: .ignore` descendants: a hidden probe `Text` on the setup screen showed up too. So they can't prove what VoiceOver skips. Check the cards with VoiceOver on a device.

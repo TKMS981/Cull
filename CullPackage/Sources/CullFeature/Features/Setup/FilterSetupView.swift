@@ -33,6 +33,7 @@ struct FilterSetupView: View {
     var body: some View {
         Form {
             if library.isLimited { limitedSection }
+            quickStartSection
             albumSection
             dateSection
             attributeSection
@@ -93,6 +94,66 @@ struct FilterSetupView: View {
         }
     }
 
+    /// One-tap presets; the active one is highlighted, and tapping it again clears the filter.
+    private var quickStartSection: some View {
+        Section {
+            ScrollView(.horizontal) {
+                GlassEffectContainer(spacing: 8) {
+                    HStack(spacing: 8) {
+                        ForEach(FilterPreset.allCases) { preset in
+                            presetChip(preset, isActive: preset.matches(filter))
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                }
+            }
+            .scrollIndicators(.hidden)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+        } header: {
+            Text("クイックスタート")
+        } footer: {
+            Text("よく使う条件をワンタップで設定します。もう一度タップすると解除します。")
+        }
+    }
+
+    private func presetChip(_ preset: FilterPreset, isActive: Bool) -> some View {
+        Button {
+            apply(preset, clearing: isActive)
+        } label: {
+            Label { Text(preset.title) } icon: { Image(systemName: preset.systemImage) }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(isActive ? Color.white : Color.primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .glassEffect(isActive ? .regular.tint(.accentColor).interactive() : .regular.interactive(), in: .capsule)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
+        .accessibilityIdentifier("preset.\(preset.rawValue)")
+    }
+
+    private func apply(_ preset: FilterPreset, clearing: Bool) {
+        withAnimation(.smooth) {
+            albumID = nil
+            if clearing {
+                attributes = []
+                useDateRange = false
+                return
+            }
+            attributes = preset.attributes
+            if let range = preset.dateRange() {
+                startDate = range.lowerBound
+                endDate = range.upperBound
+                useDateRange = true
+            } else {
+                useDateRange = false
+            }
+        }
+    }
+
     private var albumSection: some View {
         Section("アルバム") {
             Picker("対象", selection: $albumID) {
@@ -121,6 +182,7 @@ struct FilterSetupView: View {
     private var dateSection: some View {
         Section("撮影期間") {
             Toggle("期間で絞り込む", isOn: $useDateRange.animation())
+                .accessibilityIdentifier("dateRangeToggle")
             if useDateRange {
                 DatePicker("開始日", selection: $startDate, in: ...endDate, displayedComponents: .date)
                 DatePicker("終了日", selection: $endDate, in: startDate..., displayedComponents: .date)

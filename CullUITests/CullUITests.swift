@@ -237,4 +237,33 @@ final class CullUITests: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()
         waitFor(progress, value: "\(initial)")
     }
+
+    /// Quick-start presets set the filter in one tap and clear it on a second tap.
+    @MainActor
+    func testQuickStartPresetsApplyAndClear() throws {
+        launch()
+        let start = app.buttons["startButton"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        let allLabel = start.label
+
+        let live = app.buttons["preset.livePhotos"]
+        XCTAssertTrue(live.waitForExistence(timeout: 5))
+        live.tap()
+        XCTAssertTrue(live.isSelected)
+        XCTAssertTrue(app.buttons["attribute.livePhoto"].isSelected)
+        let narrowed = NSPredicate(format: "label != %@", allLabel)
+        expectation(for: narrowed, evaluatedWith: start)
+        waitForExpectations(timeout: 5)
+
+        live.tap()   // second tap clears
+        XCTAssertFalse(live.isSelected)
+        XCTAssertFalse(app.buttons["attribute.livePhoto"].isSelected)
+        expectation(for: NSPredicate(format: "label == %@", allLabel), evaluatedWith: start)
+        waitForExpectations(timeout: 5)
+
+        app.buttons["preset.thisMonth"].tap()
+        XCTAssertTrue(app.buttons["preset.thisMonth"].isSelected)
+        XCTAssertFalse(live.isSelected)
+        XCTAssertEqual(app.switches["dateRangeToggle"].firstMatch.value as? String, "1")
+    }
 }

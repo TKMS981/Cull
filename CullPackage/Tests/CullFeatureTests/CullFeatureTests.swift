@@ -180,3 +180,57 @@ struct DecisionStoreTests {
         #expect(reloaded.trashedIDs == store.trashedIDs)
     }
 }
+
+@Suite("FilterPreset")
+struct FilterPresetTests {
+    private var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        return calendar
+    }
+
+    private func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int = 0, _ min: Int = 0, _ s: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min, second: s))!
+    }
+
+    @Test func thisMonthRunsFromTheFirstToNow() {
+        let now = date(2026, 3, 15, 10, 30)
+        let range = FilterPreset.thisMonth.dateRange(now: now, calendar: calendar)
+        #expect(range == date(2026, 3, 1)...now)
+    }
+
+    @Test func lastMonthIsTheWholePreviousMonth() {
+        let range = FilterPreset.lastMonth.dateRange(now: date(2026, 3, 15), calendar: calendar)
+        #expect(range == date(2026, 2, 1)...date(2026, 2, 28, 23, 59, 59))
+    }
+
+    @Test func lastMonthCrossesTheYear() {
+        let range = FilterPreset.lastMonth.dateRange(now: date(2026, 1, 10), calendar: calendar)
+        #expect(range == date(2025, 12, 1)...date(2025, 12, 31, 23, 59, 59))
+    }
+
+    @Test func attributePresetsHaveNoDateRange() {
+        #expect(FilterPreset.screenshots.filter() == CullFilter(attributes: [.screenshot]))
+        #expect(FilterPreset.videos.dateRange() == nil)
+    }
+
+    @Test(arguments: FilterPreset.allCases)
+    func presetMatchesItsOwnFilterOnly(_ preset: FilterPreset) {
+        let now = date(2026, 3, 15, 10)
+        let own = preset.filter(now: now, calendar: calendar)
+        #expect(preset.matches(own, now: now, calendar: calendar))
+        for other in FilterPreset.allCases where other != preset {
+            #expect(!other.matches(own, now: now, calendar: calendar))
+        }
+        var inAlbum = own
+        inAlbum.albumID = "album"
+        #expect(!preset.matches(inAlbum, now: now, calendar: calendar))
+    }
+
+    @Test func matchingComparesDaysNotInstants() {
+        let now = date(2026, 3, 15, 10)
+        // The date pickers keep a time of day; a later time on the same days still matches.
+        let filter = CullFilter(dateRange: date(2026, 3, 1, 9)...date(2026, 3, 15, 23))
+        #expect(FilterPreset.thisMonth.matches(filter, now: now, calendar: calendar))
+    }
+}
