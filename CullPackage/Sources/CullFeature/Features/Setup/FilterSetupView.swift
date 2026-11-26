@@ -53,12 +53,12 @@ struct FilterSetupView: View {
         .safeAreaInset(edge: .bottom) { startButton }
         .task { await library.loadAlbums() }
         .task(id: CountKey(filter: filter, includeKept: includeKept, kept: store.keptIDs.count, trashed: store.trash.count)) {
-            updateCount()
+            await updateCount()
         }
         .task {
             for await _ in library.changes() {
                 await library.loadAlbums()
-                updateCount()
+                await updateCount()
             }
         }
         .confirmationDialog("整理済み履歴をリセットしますか？", isPresented: $confirmReset, titleVisibility: .visible) {
@@ -75,9 +75,13 @@ struct FilterSetupView: View {
         let trashed: Int
     }
 
-    private func updateCount() {
+    private func updateCount() async {
+        let filter = filter
         let excluded = includeKept ? store.trashedIDs : store.keptIDs.union(store.trashedIDs)
-        matchCount = library.count(matching: filter, excluding: excluded)
+        let count = await PhotoLibraryService.count(matching: filter, excluding: excluded)
+        // Drop the result if the filter changed (or the task was replaced) meanwhile.
+        guard !Task.isCancelled, filter == self.filter else { return }
+        matchCount = count
     }
 
     private var limitedSection: some View {

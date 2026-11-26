@@ -33,16 +33,31 @@ _Last updated: 2026-11-26_
 - **Localization**: String Catalogs (`Cull/Localizable.xcstrings`, `Cull/InfoPlist.xcstrings`). Source language is Japanese, with English translations. Development region is `ja`.
 - **Bundle hygiene**: `Config/Local.xcconfig(.example)`, the entitlements file and the test plan are excluded from the app target's synchronized folders, so they never ship inside the app.
 - **App icon**: light, dark and tinted variants.
+- **Accessibility**: the Live Photo card hides its inner `PHLivePhotoView` from accessibility (SwiftUI and UIKit side), so the card stays a single "Live Photo" element.
+- **Plurals**: English plural variants for "Sorted %lld item(s)." and "%lld kept item(s) will be shown again…".
+- **Large-library performance**:
+  - `DecisionStore` updates its `keptIDs` / `trash` / `trashedIDs` caches in place after each save instead of re-fetching every row. A failed save rolls back and does a full reload.
+  - The setup screen's match count runs in a `@concurrent` function. Stale results are dropped when the filter changes.
 
 ## Verified
 - **Build**: `build_sim` / `build_run_sim` succeed with no warnings (Xcode 27.2, iPhone 18 Pro, iOS 27.2).
-- **Tests**: `test_sim` passes 18/18.
-  - 14 Swift Testing unit tests: queue/undo, filter predicates, SwiftData store.
-  - 4 XCUITests:
+- **Tests**: `test_sim` passes 21/21.
+  - 15 Swift Testing unit tests: queue/undo, filter predicates, SwiftData store (including "in-place caches match a fresh reload").
+  - 6 XCUITests:
     - Pinch zoom disables left/right/up swipes; double-tap restores swiping.
     - Trash → restore re-queues the item.
     - Swipe up opens info.
     - Keep/trash buttons with two undos.
+    - The Live Photo card is announced as "Live Photo".
+    - English plural forms (one / other).
+- **10k-photo profiling** (Release build, separate simulator with 10,006 photos, `ContinuousClock` timing that was removed afterwards):
+
+  | Operation | Before | After |
+  |---|---|---|
+  | Keep/trash per swipe (main), ~9,000 decisions stored | 83–86 ms | 1.7–4 ms |
+  | Undo (main) | same as above | 1.6 ms |
+  | Setup count with an album selected (main) | 125 ms | ~0 (143 ms off-main) |
+  | `CullSession.load()` (off-main) | 147–174 ms | unchanged |
 - **Simulator, by hand with MobileBuildMCP**:
   - Swipes and the trash badge work.
   - The info sheet shows EXIF.
@@ -60,14 +75,10 @@ _Last updated: 2026-11-26_
 ## Not verified / known gaps
 - Limited picker: selecting items inside it couldn't be automated, because the picker runs out of process and AXe can't see it. Whether the count refreshes after the selection changes has only been checked by reading the code: the change observer fires and the setup screen recounts.
 - Live Photo audio and touch-and-hold playback were not checked; the synthetic clip has no audio.
-- No measured profiling on a 10k+ library. The heavy work is now off the main actor, but it hasn't been timed.
-- With `.accessibilityElement(children: .ignore)` on the card, the Live Photo's UIKit subview and LIVE label still appear as separate elements in AXe snapshots. Check with VoiceOver.
-- Plural forms in English use "items" for every count; there are no plural variants in the catalog yet.
+- VoiceOver itself hasn't been run. On iOS 27, XCUITest and AXe list `.accessibilityHidden` and `children: .ignore` descendants: a hidden probe `Text` on the setup screen showed up too. So they can't prove what VoiceOver skips. Check the cards with VoiceOver on a device.
 - iPhone portrait only.
 
 ## Next time, start here
 1. `git pull`, then boot the simulator and run `Scripts/seed_simulator.sh` if the library was erased.
-2. In MobileBuildMCP, run `session_show_defaults`, then `test_sim`. The baseline is 18/18 passing.
-3. Check VoiceOver on the Live Photo card; hide the inner `PHLivePhotoView` from accessibility if needed.
-4. Add plural variants to `Localizable.xcstrings`, e.g. "Sorted 1 item" vs "Sorted %lld items".
-5. Seed a large library (e.g. a loop over `simctl addmedia`) and profile `CullSession.load()` and the setup count in Instruments.
+2. In MobileBuildMCP, run `session_show_defaults`, then `test_sim`. The baseline is 21/21 passing.
+3. Check the cards with VoiceOver on a device.

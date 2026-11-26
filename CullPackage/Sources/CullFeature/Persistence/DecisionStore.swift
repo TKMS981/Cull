@@ -25,6 +25,9 @@ struct TrashEntry: Identifiable, Hashable {
 
 /// SwiftData-backed record of kept IDs (skipped next time) and Cull's trash
 /// (persists across launches). Exposes in-memory caches for fast lookups.
+///
+/// The caches are updated in place after each successful save rather than
+/// re-fetched, so a decision costs the same with 10 or 10,000 rows stored.
 @Observable
 final class DecisionStore {
     private let context: ModelContext
@@ -32,8 +35,7 @@ final class DecisionStore {
     private(set) var keptIDs: Set<String> = []
     /// Newest first.
     private(set) var trash: [TrashEntry] = []
-
-    var trashedIDs: Set<String> { Set(trash.map(\.id)) }
+    private(set) var trashedIDs: Set<String> = []
 
     init(container: ModelContainer) {
         context = ModelContext(container)
@@ -46,20 +48,32 @@ final class DecisionStore {
     }
 
     func record(_ decision: Decision, for id: String) {
+        let decidedAt = Date.now
         if let existing = fetch(id) {
             existing.decisionRaw = decision.rawValue
-            existing.decidedAt = .now
+            existing.decidedAt = decidedAt
         } else {
-            context.insert(AssetDecision(localIdentifier: id, decision: decision))
+            context.insert(AssetDecision(localIdentifier: id, decision: decision, decidedAt: decidedAt))
         }
-        save()
+        guard save() else { return }
+        forget([id])
+        switch decision {
+        case .keep:
+            keptIDs.insert(id)
+        case .trash:
+            trash.insert(TrashEntry(id: id, trashedAt: decidedAt), at: 0)
+            trashedIDs.insert(id)
+        }
     }
 
     func clear(ids: some Sequence<String>) {
+        let ids = Set(ids)
+        guard !ids.isEmpty else { return }
         for id in ids {
             if let existing = fetch(id) { context.delete(existing) }
         }
-        save()
+        guard save() else { return }
+        forget(ids)
     }
 
     /// Forgets every "kept" decision so those assets show up again. Trash is untouched.
@@ -69,8 +83,11 @@ final class DecisionStore {
             try context.delete(model: AssetDecision.self, where: #Predicate { $0.decisionRaw == keep })
         } catch {
             assertionFailure("resetKept failed: \(error)")
+            reload()
+            return
         }
-        save()
+        guard save() else { return }
+        keptIDs = []
     }
 
     private func fetch(_ id: String) -> AssetDecision? {
@@ -79,13 +96,28 @@ final class DecisionStore {
         return try? context.fetch(descriptor).first
     }
 
-    private func save() {
+    /// Drops `ids` from the in-memory caches.
+    private func forget(_ ids: Set<String>) {
+        keptIDs.subtract(ids)
+        let trashed = trashedIDs.intersection(ids)
+        if !trashed.isEmpty {
+            trash.removeAll { trashed.contains($0.id) }
+            trashedIDs.subtract(trashed)
+        }
+    }
+
+    /// Saves; on failure, rolls back and resyncs the caches from the store.
+    @discardableResult
+    private func save() -> Bool {
         do {
             try context.save()
+            return true
         } catch {
             assertionFailure("DecisionStore save failed: \(error)")
+            context.rollback()
+            reload()
+            return false
         }
-        reload()
     }
 
     private func reload() {
@@ -93,5 +125,6 @@ final class DecisionStore {
         let all = (try? context.fetch(descriptor)) ?? []
         keptIDs = Set(all.lazy.filter { $0.decision == .keep }.map(\.localIdentifier))
         trash = all.filter { $0.decision == .trash }.map { TrashEntry(id: $0.localIdentifier, trashedAt: $0.decidedAt) }
+        trashedIDs = Set(trash.map(\.id))
     }
 }

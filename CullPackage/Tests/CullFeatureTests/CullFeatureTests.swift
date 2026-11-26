@@ -143,4 +143,26 @@ struct DecisionStoreTests {
         #expect(store.keptIDs.isEmpty)
         #expect(store.trash.map(\.id) == ["c"])
     }
+
+    /// The in-place cache updates must match what a fresh load from the same store sees.
+    @Test func cachesMatchAFreshReload() throws {
+        let container = try DecisionStore.makeContainer(inMemory: true)
+        let store = DecisionStore(container: container)
+        store.record(.trash, for: "a")
+        store.record(.keep, for: "b")
+        store.record(.trash, for: "c")
+        store.record(.keep, for: "a")      // trash → keep
+        store.record(.trash, for: "b")     // keep → trash
+        store.record(.trash, for: "d")
+        store.clear(ids: ["c", "missing"])
+
+        #expect(store.keptIDs == ["a"])
+        #expect(store.trash.map(\.id) == ["d", "b"])   // newest first
+        #expect(store.trashedIDs == ["b", "d"])
+
+        let reloaded = DecisionStore(container: container)
+        #expect(reloaded.keptIDs == store.keptIDs)
+        #expect(reloaded.trash == store.trash)
+        #expect(reloaded.trashedIDs == store.trashedIDs)
+    }
 }
