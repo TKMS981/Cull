@@ -180,4 +180,30 @@ final class CullUITests: XCTestCase {
         let message = "1 kept item will be shown again. Cull's trash is not affected."
         XCTAssertTrue(app.staticTexts[message].waitForExistence(timeout: 5), app.debugDescription)
     }
+
+    /// Finishing a session shows the summary with this run's tallies and the way to the trash.
+    @MainActor
+    func testSessionSummaryShowsTalliesAndLinksToTrash() throws {
+        let (_, progress) = try startCulling(attribute: "livePhoto")
+        let total = remaining(progress)
+        XCTAssertGreaterThanOrEqual(total, 2)
+
+        app.buttons["trashSwipeButton"].tap()
+        waitFor(progress, value: "\(total - 1)")
+        for _ in 1..<total { app.buttons["keepButton"].tap() }
+
+        let summary = app.descendants(matching: .any)["sessionSummary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["summaryKept"].label.contains("\(total - 1)"))
+        XCTAssertTrue(app.descendants(matching: .any)["summaryTrashed"].label.contains("1"))
+
+        app.buttons["reviewTrashButton"].tap()
+        XCTAssertTrue(app.buttons["trashCell"].firstMatch.waitForExistence(timeout: 5))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        let done = app.buttons["summaryDoneButton"]
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        done.tap()
+        XCTAssertTrue(app.buttons["startButton"].waitForExistence(timeout: 5))
+    }
 }

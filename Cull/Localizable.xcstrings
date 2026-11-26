@@ -764,6 +764,36 @@
           }
         }
       }
+    },
+    "ゴミ箱へ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To Trash"
+          }
+        }
+      }
+    },
+    "条件を変えて続ける": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change Filters"
+          }
+        }
+      }
+    },
+    "整理する写真はありません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing to Sort"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -10,6 +10,7 @@ struct CullView: View {
     @Environment(PhotoLibraryService.self) private var library
     @Environment(DecisionStore.self) private var store
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.dismiss) private var dismiss
 
     @State private var session: CullSession?
     @State private var dragOffset: CGSize = .zero
@@ -328,16 +329,14 @@ struct CullView: View {
     }
 
     private func finished(_ session: CullSession) -> some View {
-        ContentUnavailableView {
-            Label("すべて整理しました", systemImage: "checkmark.seal")
-        } description: {
-            session.total == 0 ? Text("条件に一致する未整理の写真はありません。") : Text("\(session.total) 件を整理しました。")
-        } actions: {
-            if !store.trash.isEmpty {
-                Button("ゴミ箱を確認（\(store.trash.count)）") { showTrash = true }
-                    .buttonStyle(.borderedProminent)
-            }
-        }
+        SessionSummaryView(
+            total: session.total,
+            kept: session.keptCount,
+            trashed: session.trashedCount,
+            trashCount: store.trash.count,
+            onReviewTrash: { showTrash = true },
+            onDone: { dismiss() }
+        )
     }
 
     // MARK: Gesture
