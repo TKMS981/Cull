@@ -794,6 +794,56 @@
           }
         }
       }
+    },
+    "選択中：約 %@ 削減可能": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selected: about %@ can be freed"
+          }
+        }
+      }
+    },
+    "約 %@ 削減可能": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About %@ can be freed"
+          }
+        }
+      }
+    },
+    "削除すると「最近削除した項目」に移動し、30日後に完全に削除されます。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleted items go to Recently Deleted and are removed for good after 30 days."
+          }
+        }
+      }
+    },
+    "サイズを計算中…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculating size…"
+          }
+        }
+      }
+    },
+    "閉じる": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

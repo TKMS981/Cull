@@ -15,6 +15,12 @@ struct TrashView: View {
     @State private var isSelecting = false
     @State private var isDeleting = false
     @State private var errorMessage: String?
+    /// Bytes per trashed asset, filled in off the main actor.
+    @State private var sizes: [String: Int64] = [:]
+    @State private var preview: PreviewItem?
+    @Namespace private var previewNamespace
+
+    private struct PreviewItem: Identifiable { let id: String }
 
     private let columns = [GridItem(.adaptive(minimum: 100), spacing: 2)]
 
@@ -26,6 +32,9 @@ struct TrashView: View {
                 ContentUnavailableView("ゴミ箱は空です", systemImage: "trash", description: Text("右にスワイプした写真がここに表示されます。"))
             } else {
                 ScrollView {
+                    sizeSummary
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
                     LazyVGrid(columns: columns, spacing: 2) {
                         ForEach(entries) { entry in
                             if let asset = assets[entry.id] {
@@ -42,6 +51,20 @@ struct TrashView: View {
         .task(id: store.trash) {
             assets = library.assets(withIDs: store.trash.map(\.id))
             selection.formIntersection(assets.keys)
+            let missing = assets.keys.filter { sizes[$0] == nil }
+            let measured = await AssetSizeReader.bytes(forIDs: Array(missing))
+            sizes.merge(measured) { _, new in new }
+        }
+        .fullScreenCover(item: $preview) { item in
+            if let asset = assets[item.id] {
+                TrashPreviewView(
+                    asset: asset,
+                    size: sizes[item.id],
+                    onRestore: { restore(ids: [item.id]) },
+                    onDelete: { await delete(ids: [item.id]) }
+                )
+                .navigationTransition(.zoom(sourceID: item.id, in: previewNamespace))
+            }
         }
         .alert("削除できませんでした", isPresented: .init(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("OK", role: .cancel) {}
@@ -54,8 +77,11 @@ struct TrashView: View {
         let id = asset.localIdentifier
         let isSelected = selection.contains(id)
         return Button {
-            if !isSelecting { isSelecting = true }
-            if isSelected { selection.remove(id) } else { selection.insert(id) }
+            if isSelecting {
+                if isSelected { selection.remove(id) } else { selection.insert(id) }
+            } else {
+                preview = PreviewItem(id: id)
+            }
         } label: {
             Color.clear
                 .aspectRatio(1, contentMode: .fit)
@@ -82,9 +108,47 @@ struct TrashView: View {
                 .opacity(isSelecting && !isSelected ? 0.75 : 1)
         }
         .buttonStyle(.plain)
+        .matchedTransitionSource(id: id, in: previewNamespace)
         .accessibilityLabel(Text(asset.accessibilityKind))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityIdentifier("trashCell")
+    }
+
+    /// "About 12.3 MB can be freed": for the selection while selecting, else the whole trash.
+    private var sizeSummary: some View {
+        let ids = isSelecting && !selection.isEmpty ? Array(selection) : entries.map(\.id)
+        let known = ids.compactMap { sizes[$0] }
+        let total = known.reduce(0, +)
+        let isMeasuring = known.count < ids.count && !ids.isEmpty
+        return HStack(spacing: 12) {
+            Image(systemName: "internaldrive")
+                .font(.title2)
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Group {
+                    if isSelecting && !selection.isEmpty {
+                        Text("選択中：約 \(total.formatted(.byteCount(style: .file))) 削減可能")
+                    } else {
+                        Text("約 \(total.formatted(.byteCount(style: .file))) 削減可能")
+                    }
+                }
+                .font(.headline)
+                .contentTransition(.numericText())
+                .animation(.smooth, value: total)
+                Text("削除すると「最近削除した項目」に移動し、30日後に完全に削除されます。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            if isMeasuring {
+                ProgressView().accessibilityLabel(Text("サイズを計算中…"))
+            }
+        }
+        .padding(14)
+        .glassEffect(.regular, in: .rect(cornerRadius: 18))
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("trashSizeSummary")
     }
 
     @ToolbarContentBuilder
@@ -110,13 +174,13 @@ struct TrashView: View {
             }
             ToolbarSpacer(.flexible, placement: .bottomBar)
             ToolbarItem(placement: .bottomBar) {
-                Button("元に戻す", systemImage: "arrow.uturn.backward") { restore() }
+                Button("元に戻す", systemImage: "arrow.uturn.backward") { restore(ids: Array(selection)) }
                     .disabled(selection.isEmpty)
                     .accessibilityIdentifier("restoreButton")
             }
             ToolbarItem(placement: .bottomBar) {
                 Button("削除", systemImage: "trash", role: .destructive) {
-                    Task { await delete() }
+                    Task { await delete(ids: Array(selection)) }
                 }
                 .disabled(selection.isEmpty || isDeleting)
                 .accessibilityIdentifier("deleteButton")
@@ -124,22 +188,21 @@ struct TrashView: View {
         }
     }
 
-    private func restore() {
-        let ids = Array(selection)
+    private func restore(ids: [String]) {
         store.clear(ids: ids)
         onRestore?(ids)
-        selection.removeAll()
+        selection.subtract(ids)
         if store.trash.isEmpty { isSelecting = false }
     }
 
-    private func delete() async {
+    private func delete(ids: [String]) async {
         isDeleting = true
         defer { isDeleting = false }
-        let ids = Array(selection)
         switch await DeletionService.delete(ids: ids) {
         case .deleted:
             store.clear(ids: ids)
-            selection.removeAll()
+            selection.subtract(ids)
+            if let preview, ids.contains(preview.id) { self.preview = nil }
             if store.trash.isEmpty { isSelecting = false }
         case .cancelled:
             break

@@ -103,7 +103,11 @@ final class CullUITests: XCTestCase {
         app.buttons["trashButton"].tap()
         let cell = app.buttons["trashCell"].firstMatch
         XCTAssertTrue(cell.waitForExistence(timeout: 5))
-        cell.tap()
+        app.buttons["selectButton"].tap()   // a plain tap opens the preview instead
+        XCTAssertTrue(app.buttons["restoreButton"].waitForExistence(timeout: 5))
+        // In selection mode XCUITest reports the cell as not hittable (its a11y frame spans the
+        // unclipped fill image), though a real tap at its centre works; tap the centre directly.
+        cell.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         app.buttons["restoreButton"].tap()
         XCTAssertFalse(cell.waitForExistence(timeout: 1))
 
@@ -205,5 +209,32 @@ final class CullUITests: XCTestCase {
         XCTAssertTrue(done.waitForExistence(timeout: 5))
         done.tap()
         XCTAssertTrue(app.buttons["startButton"].waitForExistence(timeout: 5))
+    }
+
+    /// Trash shows the reclaimable size, and a cell opens a preview that can restore the item.
+    @MainActor
+    func testTrashSizeAndPreviewRestore() throws {
+        let (card, progress) = try startCulling()
+        let initial = remaining(progress)
+        card.swipeRight()
+        waitFor(progress, value: "\(initial - 1)")
+
+        app.buttons["trashButton"].tap()
+        let summary = app.descendants(matching: .any)["trashSizeSummary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 5))
+        let sized = NSPredicate(format: "label CONTAINS 'can be freed' AND NOT (label CONTAINS 'Zero')")
+        expectation(for: sized, evaluatedWith: summary)
+        waitForExpectations(timeout: 10)
+
+        let cell = app.buttons["trashCell"].firstMatch
+        XCTAssertTrue(cell.waitForExistence(timeout: 5))
+        cell.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["trashPreview"].waitForExistence(timeout: 5))
+        app.buttons["previewRestoreButton"].tap()
+        XCTAssertFalse(app.descendants(matching: .any)["trashPreview"].waitForExistence(timeout: 2))
+        XCTAssertFalse(cell.waitForExistence(timeout: 2))
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        waitFor(progress, value: "\(initial)")
     }
 }
