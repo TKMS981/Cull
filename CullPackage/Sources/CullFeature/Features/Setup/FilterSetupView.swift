@@ -157,6 +157,7 @@ struct FilterSetupView: View {
                 .accessibilityIdentifier("includeKeptToggle")
             Button("整理済み履歴をリセット", role: .destructive) { confirmReset = true }
                 .disabled(store.keptIDs.isEmpty)
+                .accessibilityIdentifier("resetKeptButton")
         } header: {
             Text("設定")
         } footer: {

@@ -34,9 +34,21 @@
     "%lld 件を整理しました。": {
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sorted %lld items."
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Sorted %lld item."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Sorted %lld items."
+                }
+              }
+            }
           }
         }
       }
@@ -44,9 +56,21 @@
     "「保持」にした %lld 件が再び整理対象になります。ゴミ箱の内容は変わりません。": {
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld kept items will be shown again. Cull's trash is not affected."
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld kept item will be shown again. Cull's trash is not affected."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld kept items will be shown again. Cull's trash is not affected."
+                }
+              }
+            }
           }
         }
       }

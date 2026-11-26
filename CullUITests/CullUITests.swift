@@ -11,9 +11,9 @@ final class CullUITests: XCTestCase {
     }
 
     @MainActor
-    private func launch() {
+    private func launch(extraArguments: [String] = []) {
         app = XCUIApplication()
-        app.launchArguments = ["-UITestInMemoryStore"]
+        app.launchArguments = ["-UITestInMemoryStore"] + extraArguments
         addUIInterruptionMonitor(withDescription: "Photos permission") { alert in
             for label in ["Allow Full Access", "フルアクセスを許可", "Allow Access to All Photos", "すべての写真へのアクセスを許可"] {
                 let button = alert.buttons[label]
@@ -25,8 +25,8 @@ final class CullUITests: XCTestCase {
     }
 
     @MainActor
-    private func startCulling(attribute: String? = nil) throws -> (card: XCUIElement, progress: XCUIElement) {
-        launch()
+    private func startCulling(attribute: String? = nil, extraArguments: [String] = []) throws -> (card: XCUIElement, progress: XCUIElement) {
+        launch(extraArguments: extraArguments)
         let request = app.buttons["requestAccessButton"]
         if request.waitForExistence(timeout: 2) {
             request.tap()
@@ -146,5 +146,38 @@ final class CullUITests: XCTestCase {
         let (card, _) = try startCulling(attribute: "livePhoto")
         XCTAssertEqual(card.label, "Live Photo")
         XCTAssertEqual(card.value as? String, "fit")
+    }
+
+    /// English plural variants: "1 kept item" (one) and "Sorted 2 items." (other).
+    /// Needs at least two Live Photos in the library (`Scripts/seed_simulator.sh` adds one per run).
+    @MainActor
+    func testEnglishPluralForms() throws {
+        let english = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
+        let (_, progress) = try startCulling(attribute: "livePhoto", extraArguments: english)
+        let total = remaining(progress)
+        XCTAssertGreaterThanOrEqual(total, 2)
+
+        app.buttons["keepButton"].tap()
+        waitFor(progress, value: "\(total - 1)")
+        for _ in 1..<total { app.buttons["keepButton"].tap() }
+        XCTAssertTrue(app.staticTexts["Sorted \(total) items."].waitForExistence(timeout: 5))
+
+        // Undo all but one keep, so exactly one item stays kept.
+        // "Undo" matches the finished screen's button and, after that, the in-session undoButton.
+        for _ in 1..<total {
+            let undo = app.buttons["Undo"]
+            XCTAssertTrue(undo.waitForExistence(timeout: 5))
+            undo.tap()
+        }
+        waitFor(progress, value: "\(total - 1)")
+        app.buttons["BackButton"].tap()
+
+        let reset = app.buttons["resetKeptButton"]
+        XCTAssertTrue(app.buttons["startButton"].waitForExistence(timeout: 5))
+        for _ in 0..<3 where !reset.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(reset.isHittable)
+        reset.tap()
+        let message = "1 kept item will be shown again. Cull's trash is not affected."
+        XCTAssertTrue(app.staticTexts[message].waitForExistence(timeout: 5), app.debugDescription)
     }
 }
