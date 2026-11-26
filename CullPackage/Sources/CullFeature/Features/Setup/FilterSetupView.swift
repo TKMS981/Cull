@@ -21,6 +21,8 @@ struct FilterSetupView: View {
     @State private var attributes: Set<MediaAttribute> = []
     @State private var matchCount = 0
     @State private var confirmReset = false
+    /// The large title has scrolled away, so the bar shows the compact wordmark.
+    @State private var isTitleCollapsed = false
 
     private var filter: CullFilter {
         CullFilter(
@@ -39,8 +41,19 @@ struct FilterSetupView: View {
             attributeSection
             settingsSection
         }
-        .navigationTitle("Cull")
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            // Past roughly the large title's height, it has collapsed into the bar.
+            geometry.contentOffset.y + geometry.contentInsets.top > Self.largeTitleCollapseOffset
+        } action: { _, collapsed in
+            withAnimation(.easeInOut(duration: 0.2)) { isTitleCollapsed = collapsed }
+        }
+        // The plain title still names the screen for VoiceOver and the back button. Both
+        // visible spots use the script wordmark instead, on this screen only: large at the
+        // top left before scrolling, compact in the centre of the bar once scrolled.
+        .navigationTitle(Text(verbatim: "Cull"))
         .toolbar {
+            ToolbarItem(placement: .largeTitle) { wordmark }
+            ToolbarItem(placement: .principal) { compactWordmark }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     path.append(.trash)
@@ -95,6 +108,28 @@ struct FilterSetupView: View {
     }
 
     /// One-tap presets; the active one is highlighted, and tapping it again clears the filter.
+    static let largeTitleCollapseOffset: CGFloat = 40
+
+    /// "Cull" in Snell Roundhand (built into iOS), the same in every language.
+    /// Scales with Dynamic Type relative to the large title.
+    private var wordmark: some View {
+        Text(verbatim: "Cull")
+            .font(.custom("SnellRoundhand-Bold", size: 44, relativeTo: .largeTitle))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("wordmark")
+    }
+
+    /// The same wordmark at inline-title size; fades in only once the large title has
+    /// scrolled away (the principal slot would otherwise show above the large title too).
+    private var compactWordmark: some View {
+        Text(verbatim: "Cull")
+            .font(.custom("SnellRoundhand-Bold", size: 26, relativeTo: .headline))
+            .opacity(isTitleCollapsed ? 1 : 0)
+            .accessibilityHidden(!isTitleCollapsed)
+            .accessibilityIdentifier("compactWordmark")
+    }
+
     private var quickStartSection: some View {
         Section {
             ScrollView(.horizontal) {

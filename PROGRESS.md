@@ -51,11 +51,19 @@ _Last updated: 2026-11-26_
     - Restore (re-queues into the active session); delete (system confirmation → Recently Deleted).
     - "About N MB can be freed" header, for the whole trash or the selection.
     - Tapping a cell opens a full-screen preview (zoom transition) that reuses the culling card, with restore and delete.
-- **Tooling**: `Scripts/seed_simulator.sh` generates and seeds test media (EXIF photos, a video, a Live Photo pair). `Scripts/make_app_icon.swift` regenerates the app icon.
+- **Tooling**: `Scripts/seed_simulator.sh` generates and seeds test media (EXIF photos, a video, a Live Photo pair). `Scripts/make_app_icon.swift <artwork> <appiconset>` builds the three icon variants from square artwork on a flat background. The artwork is kept outside the repo.
 - **Performance**: `CullSession.load()` and the album counts now run in `@concurrent` functions, off the main actor.
 - **Localization**: String Catalogs (`Cull/Localizable.xcstrings`, `Cull/InfoPlist.xcstrings`). Source language is Japanese, with English translations. Development region is `ja`.
 - **Bundle hygiene**: `Config/Local.xcconfig(.example)`, the entitlements file and the test plan are excluded from the app target's synchronized folders, so they never ship inside the app.
-- **App icon**: light, dark and tinted variants.
+- **App icon**: hand-drawn card artwork (cream photo card over a terracotta card).
+  - Default: the artwork on its charcoal background, opaque.
+  - Dark: the background is flood-filled away to transparency, with the fringe removed, so iOS draws its own dark backdrop.
+  - Tinted: grayscale foreground on black.
+- **Wordmark**: the setup screen shows "Cull" in Snell Roundhand (built into iOS), the same in every language.
+  - Before scrolling: in the `.largeTitle` toolbar slot.
+  - Once the large title has scrolled away: a compact version in `.principal`, driven by `onScrollGeometryChange`.
+  - Only this screen is affected; there is no global `UINavigationBar` appearance change.
+  - `.navigationTitle("Cull")` stays for VoiceOver and the back button.
 - **Accessibility**: the Live Photo card hides its inner `PHLivePhotoView` from accessibility (SwiftUI and UIKit side), so the card stays a single "Live Photo" element.
 - **Plurals**: English plural variants for "Sorted %lld item(s)." and "%lld kept item(s) will be shown again…".
 - **Large-library performance**:
