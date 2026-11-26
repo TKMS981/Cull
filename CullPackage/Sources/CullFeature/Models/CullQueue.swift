@@ -26,6 +26,11 @@ public struct CullQueue<Element: Identifiable> where Element.ID == String {
     public var remaining: Int { pending.count }
     public var canUndo: Bool { !history.isEmpty }
 
+    /// How many items this session has decided as `decision` (net of undos and restores).
+    public func count(of decision: Decision) -> Int {
+        history.count { $0.decision == decision }
+    }
+
     /// Decides the current item and advances. Returns the decided element.
     @discardableResult
     public mutating func decide(_ decision: Decision) -> Element? {

@@ -18,6 +18,16 @@ struct CullView: View {
     @State private var isMuted = true
     @State private var infoItem: CullItem?
     @State private var showTrash = false
+    /// Which way the drag would decide if released now (past the threshold), for the haptic tick.
+    @State private var armed: Decision?
+    @State private var feedback: Feedback?
+
+    /// One haptic event; `id` makes repeated events of the same kind distinct triggers.
+    private struct Feedback: Equatable {
+        enum Kind { case armed, keep, trash, undo }
+        let kind: Kind
+        let id: Int
+    }
 
     var body: some View {
         Group {
@@ -30,7 +40,11 @@ struct CullView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) { progressHeader }
-            ToolbarItem(placement: .topBarTrailing) { trashButton }
+            // Undo + trash share one Liquid Glass capsule.
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                undoButton
+                trashButton
+            }
         }
         .navigationDestination(isPresented: $showTrash) {
             TrashView { restored in session?.requeue(ids: restored) }
@@ -53,7 +67,15 @@ struct CullView: View {
             }
         }
         .onDisappear { session?.tearDown() }
-        .sensoryFeedback(.impact(weight: .light), trigger: session?.decidedCount)
+        .sensoryFeedback(trigger: feedback) { _, new in
+            switch new?.kind {
+            case .armed: .impact(weight: .medium, intensity: 0.7)
+            case .keep: .impact(weight: .light)
+            case .trash: .impact(weight: .heavy, intensity: 0.8)
+            case .undo: .impact(flexibility: .soft, intensity: 0.8)
+            case nil: nil
+            }
+        }
     }
 
     // MARK: Header
@@ -62,17 +84,49 @@ struct CullView: View {
     private var progressHeader: some View {
         if let session, session.total > 0 {
             VStack(spacing: 4) {
-                Text("残り \(session.remaining) / \(session.total)")
-                    .font(.subheadline.weight(.semibold))
-                    .monospacedDigit()
+                HStack(spacing: 10) {
+                    Text("残り \(session.remaining) / \(session.total)")
+                        .font(.subheadline.weight(.semibold))
+                    HStack(spacing: 6) {
+                        Label { Text(session.keptCount, format: .number) } icon: { Image(systemName: "checkmark") }
+                            .foregroundStyle(.green)
+                        Label { Text(session.trashedCount, format: .number) } icon: { Image(systemName: "trash") }
+                            .foregroundStyle(.red)
+                    }
+                    .labelStyle(.tally)
+                    .font(.caption.weight(.semibold))
+                }
+                .monospacedDigit()
                 ProgressView(value: Double(session.decidedCount), total: Double(max(session.total, 1)))
-                    .frame(width: 140)
+                    .frame(width: 160)
+                    .animation(.smooth, value: session.decidedCount)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("残り \(session.remaining) 件、全 \(session.total) 件")
             .accessibilityValue(Text(session.remaining, format: .number))
             .accessibilityIdentifier("progress")
         }
+    }
+
+    private var undoButton: some View {
+        Button {
+            undo()
+        } label: {
+            Label("元に戻す", systemImage: "arrow.uturn.backward")
+        }
+        .disabled(!(session?.canUndo ?? false) || isFlying)
+        .accessibilityIdentifier("undoButton")
+    }
+
+    private func undo() {
+        guard let session, session.canUndo, !isFlying else { return }
+        isZoomed = false
+        session.undo()
+        emit(.undo)
+    }
+
+    private func emit(_ kind: Feedback.Kind) {
+        feedback = Feedback(kind: kind, id: (feedback?.id ?? 0) + 1)
     }
 
     private var trashButton: some View {
@@ -117,13 +171,17 @@ struct CullView: View {
     private func cardStack(_ session: CullSession, current: CullItem) -> some View {
         GeometryReader { proxy in
             ZStack {
-                if let next = session.upNext {
-                    MediaCardView(asset: next.asset, isActive: false, isZoomed: .constant(false), isMuted: true)
-                        .scaleEffect(0.94)
-                        .opacity(nextCardOpacity)
+                // Cards waiting behind; they step forward as the top card is dragged away.
+                let behind = session.upcoming(2)
+                ForEach(Array(behind.enumerated()).reversed(), id: \.element.id) { index, item in
+                    let depth = CGFloat(index + 1) - dragProgress
+                    MediaCardView(asset: item.asset, isActive: false, isZoomed: .constant(false), isMuted: true)
+                        .overlay { Color.black.opacity(0.18 * depth).allowsHitTesting(false) }
+                        .clipShape(.rect(cornerRadius: 24))
+                        .scaleEffect(1 - 0.05 * depth)
+                        .offset(y: 24 * depth)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
-                        .id(next.id)
                 }
 
                 MediaCardView(
@@ -134,7 +192,9 @@ struct CullView: View {
                     onToggleMute: { isMuted.toggle() }
                 )
                 .id(current.id)
+                .overlay { decisionTint }
                 .overlay { decisionBadge }
+                .shadow(color: .black.opacity(0.22), radius: 14, y: 8)
                 .offset(x: dragOffset.width, y: min(dragOffset.height, 0) * 0.25)
                 .rotationEffect(.degrees(Double(dragOffset.width / proxy.size.width) * 12), anchor: .bottom)
                 .gesture(swipeGesture(session, width: proxy.size.width), isEnabled: !isZoomed && !isFlying)
@@ -156,44 +216,71 @@ struct CullView: View {
         session.cacheTargetSize = CGSize(width: size.width * displayScale, height: size.height * displayScale)
     }
 
-    private var nextCardOpacity: Double {
-        min(0.4 + abs(dragOffset.width) / 300, 1)
+    /// 0 at rest, 1 once the drag passes the decision threshold.
+    private var dragProgress: CGFloat {
+        min(abs(dragOffset.width) / Self.threshold, 1)
     }
 
+    /// A wash of the decision's color over the card that deepens with the drag.
+    @ViewBuilder
+    private var decisionTint: some View {
+        if dragOffset.width != 0 {
+            RoundedRectangle(cornerRadius: 24)
+                .fill((dragOffset.width < 0 ? Color.green : Color.red).gradient)
+                .opacity(0.28 * dragProgress)
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// KEEP (dragging left) / TRASH (dragging right) stamps that fade and settle in with the drag.
     @ViewBuilder
     private var decisionBadge: some View {
-        let progress = min(abs(dragOffset.width) / Self.threshold, 1)
         if dragOffset.width < -8 {
-            stamp("保持", systemImage: "checkmark.circle.fill", color: .green)
-                .opacity(progress)
+            stamp("KEEP", systemImage: "checkmark", color: .green, angle: 12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         } else if dragOffset.width > 8 {
-            stamp("ゴミ箱", systemImage: "trash.fill", color: .red)
-                .opacity(progress)
+            stamp("TRASH", systemImage: "trash", color: .red, angle: -12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
-    private func stamp(_ title: LocalizedStringKey, systemImage: String, color: Color) -> some View {
-        Label(title, systemImage: systemImage)
-            .font(.title2.bold())
-            .foregroundStyle(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(color.gradient, in: .capsule)
-            .padding(24)
+    private func stamp(_ title: String, systemImage: String, color: Color, angle: Double) -> some View {
+        Label { Text(verbatim: title) } icon: { Image(systemName: systemImage) }
+            .font(.title.weight(.heavy))
+            .kerning(1.5)
+            .foregroundStyle(color)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(.white.opacity(0.85), in: .rect(cornerRadius: 12))
+            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(color, lineWidth: 4))
+            .rotationEffect(.degrees(angle))
+            .scaleEffect(0.8 + 0.2 * dragProgress)
+            .opacity(dragProgress)
+            .padding(28)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     private func controls(_ session: CullSession, current: CullItem) -> some View {
         HStack(spacing: 20) {
-            Button {
-                isZoomed = false
-                session.undo()
-            } label: {
-                Label("元に戻す", systemImage: "arrow.uturn.backward")
+            // Leading slot: sound toggle for media with audio, otherwise empty to keep the layout centred.
+            Group {
+                if current.asset.hasAudio {
+                    Button {
+                        isMuted.toggle()
+                    } label: {
+                        Label {
+                            isMuted ? Text("サウンドをオン") : Text("サウンドをオフ")
+                        } icon: {
+                            Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        }
+                    }
+                    .accessibilityIdentifier("muteButton")
+                } else {
+                    Color.clear.accessibilityHidden(true)
+                }
             }
-            .disabled(!session.canUndo || isFlying)
-            .accessibilityIdentifier("undoButton")
+            .frame(width: 48, height: 48)
 
             Spacer()
 
@@ -225,27 +312,14 @@ struct CullView: View {
 
             Spacer()
 
-            HStack(spacing: 12) {
-                if current.asset.hasAudio {
-                    Button {
-                        isMuted.toggle()
-                    } label: {
-                        Label {
-                            isMuted ? Text("サウンドをオン") : Text("サウンドをオフ")
-                        } icon: {
-                            Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                        }
-                    }
-                    .accessibilityIdentifier("muteButton")
-                }
-                Button {
-                    infoItem = current
-                } label: {
-                    Label("情報", systemImage: "info.circle")
-                }
-                .disabled(isZoomed)
-                .accessibilityIdentifier("infoButton")
+            Button {
+                infoItem = current
+            } label: {
+                Label("情報", systemImage: "info.circle")
             }
+            .disabled(isZoomed)
+            .frame(width: 48, height: 48)
+            .accessibilityIdentifier("infoButton")
         }
         .labelStyle(.iconOnly)
         .font(.title3)
@@ -259,9 +333,6 @@ struct CullView: View {
         } description: {
             session.total == 0 ? Text("条件に一致する未整理の写真はありません。") : Text("\(session.total) 件を整理しました。")
         } actions: {
-            if session.canUndo {
-                Button("元に戻す") { session.undo() }
-            }
             if !store.trash.isEmpty {
                 Button("ゴミ箱を確認（\(store.trash.count)）") { showTrash = true }
                     .buttonStyle(.borderedProminent)
@@ -278,8 +349,15 @@ struct CullView: View {
             .onChanged { value in
                 guard !isZoomed else { return }
                 dragOffset = value.translation
+                let dx = value.translation.width
+                let newArmed: Decision? = dx < -Self.threshold ? .keep : dx > Self.threshold ? .trash : nil
+                if newArmed != armed {
+                    armed = newArmed
+                    if newArmed != nil { emit(.armed) }
+                }
             }
             .onEnded { value in
+                armed = nil
                 let translation = value.translation
                 let predicted = value.predictedEndTranslation
                 // A pinch that started mid-drag flips isZoomed; never cull in that case.
@@ -314,9 +392,24 @@ struct CullView: View {
             dragOffset = CGSize(width: direction * width * 1.5, height: dragOffset.height)
         } completion: {
             session.decide(decision)
+            emit(decision == .keep ? .keep : .trash)
             dragOffset = .zero
             isZoomed = false
             isFlying = false
         }
     }
+}
+
+/// Icon + number, tightly spaced (HUD tallies).
+struct TallyLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 2) {
+            configuration.icon.imageScale(.small)
+            configuration.title
+        }
+    }
+}
+
+extension LabelStyle where Self == TallyLabelStyle {
+    static var tally: TallyLabelStyle { TallyLabelStyle() }
 }

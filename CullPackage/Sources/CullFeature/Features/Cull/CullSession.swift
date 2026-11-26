@@ -40,6 +40,10 @@ final class CullSession {
 
     var current: CullItem? { queue.current }
     var upNext: CullItem? { queue.pending.dropFirst().first }
+    /// The cards stacked behind the current one, nearest first.
+    func upcoming(_ count: Int) -> [CullItem] { Array(queue.pending.dropFirst().prefix(count)) }
+    var keptCount: Int { queue.count(of: .keep) }
+    var trashedCount: Int { queue.count(of: .trash) }
     var remaining: Int { queue.remaining }
     var canUndo: Bool { queue.canUndo }
     var decidedCount: Int { max(total - remaining, 0) }

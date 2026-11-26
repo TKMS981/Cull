@@ -33,6 +33,20 @@ struct CullQueueTests {
         #expect(q.remaining == 3)
     }
 
+    @Test func decisionCountsFollowUndoAndRequeue() {
+        var q = queue("a", "b", "c")
+        q.decide(.keep)
+        q.decide(.trash)
+        q.decide(.trash)
+        #expect(q.count(of: .keep) == 1)
+        #expect(q.count(of: .trash) == 2)
+        q.undo()
+        #expect(q.count(of: .trash) == 1)
+        q.requeue(Item(id: "b"))   // restored from trash
+        #expect(q.count(of: .trash) == 0)
+        #expect(q.count(of: .keep) == 1)
+    }
+
     @Test func decideOnEmptyIsNoOp() {
         var q = queue()
         #expect(q.decide(.keep) == nil)

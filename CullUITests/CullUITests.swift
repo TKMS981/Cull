@@ -163,9 +163,9 @@ final class CullUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Sorted \(total) items."].waitForExistence(timeout: 5))
 
         // Undo all but one keep, so exactly one item stays kept.
-        // "Undo" matches the finished screen's button and, after that, the in-session undoButton.
+        // Undo lives in the top HUD, on the finished screen as well as mid-session.
         for _ in 1..<total {
-            let undo = app.buttons["Undo"]
+            let undo = app.buttons["undoButton"]
             XCTAssertTrue(undo.waitForExistence(timeout: 5))
             undo.tap()
         }
