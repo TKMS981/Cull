@@ -1,5 +1,8 @@
-// Copy to Config/Local.xcconfig (gitignored) to build on a real device.
-// Never commit the copy.
+// Copy to Config/Local.xcconfig (gitignored) to build on a real device,
+// then replace both values below with your own. Never commit the copy.
 //
-// DEVELOPMENT_TEAM = ABCDE12345
-// PRODUCT_BUNDLE_IDENTIFIER = com.yourname.Cull
+// Team ID: developer.apple.com/account → Membership details (10 characters).
+// Bundle ID: must be unique to you, e.g. com.yourname.Cull.
+
+DEVELOPMENT_TEAM = ABCDE12345
+PRODUCT_BUNDLE_IDENTIFIER = com.yourname.Cull
