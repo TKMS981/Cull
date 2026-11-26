@@ -29,6 +29,10 @@ struct SwipeDeckView: View {
     @State private var axis: SwipeAxis?
     @State private var armed: Decision?
     @State private var departing: [Departing] = []
+    /// A two-finger pinch is in progress on the top card.
+    @State private var isPinching = false
+    /// This drag overlapped a pinch, so it must not decide anything.
+    @State private var dragSawPinch = false
 
     private struct Departing {
         let item: CullItem
@@ -99,7 +103,8 @@ struct SwipeDeckView: View {
             isActive: isTop,
             isZoomed: isTop ? $isZoomed : .constant(false),
             isMuted: isTop ? isMuted : true,
-            onToggleMute: { isMuted.toggle() }
+            onToggleMute: { isMuted.toggle() },
+            onPinchingChange: isTop ? { isPinching = $0 } : nil
         )
         .overlay { Color.black.opacity(0.18 * depth).allowsHitTesting(false) }
         .overlay { decisionTint(offset.width, progress: lean) }
@@ -110,7 +115,11 @@ struct SwipeDeckView: View {
         .offset(offset)
         .rotationEffect(.degrees(Double(offset.width / max(width, 1)) * 12), anchor: .bottom)
         .allowsHitTesting(isTop)
-        .gesture(swipeGesture(width: width), isEnabled: isTop && !isZoomed)
+        // Simultaneous, not `.gesture`: a parent's plain gesture waits for the card's own
+        // tap / double-tap / pinch to fail first, which on a device lets the finger travel
+        // well past the tap tolerance before the card starts moving. Running alongside them,
+        // the swipe tracks from the first couple of points. Pinches are fenced off below.
+        .simultaneousGesture(swipeGesture(width: width), isEnabled: isTop && !isZoomed)
         .accessibilityHidden(!isTop)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(layer.item.asset.accessibilityKind))
@@ -141,10 +150,10 @@ struct SwipeDeckView: View {
     /// KEEP (dragging left) / TRASH (dragging right) stamps that fade and settle in with the drag.
     @ViewBuilder
     private func decisionBadge(_ x: CGFloat, progress: CGFloat) -> some View {
-        if x < -SwipeRules.minimumDistance {
+        if x < -Self.stampAppearsAfter {
             stamp("KEEP", systemImage: "checkmark", color: .green, angle: 12, progress: progress)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-        } else if x > SwipeRules.minimumDistance {
+        } else if x > Self.stampAppearsAfter {
             stamp("TRASH", systemImage: "trash", color: .red, angle: -12, progress: progress)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
@@ -167,13 +176,19 @@ struct SwipeDeckView: View {
             .accessibilityHidden(true)
     }
 
+    private static let stampAppearsAfter: CGFloat = 8
+
     // MARK: Gesture
 
     private func swipeGesture(width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: SwipeRules.minimumDistance)
             .onChanged { value in
-                // A pinch that started mid-drag flips isZoomed; stop tracking then.
-                guard !isZoomed else { return }
+                // A pinch running alongside (or one that zoomed in) takes over: park the card.
+                if isPinching { dragSawPinch = true }
+                guard !isZoomed, !dragSawPinch else {
+                    if dragOffset != .zero { snapBack() }
+                    return
+                }
                 let translation = value.translation
                 if axis == nil, let locked = SwipeRules.lock(translation) {
                     axis = locked
@@ -199,9 +214,11 @@ struct SwipeDeckView: View {
             }
             .onEnded { value in
                 let lockedAxis = axis
+                let sawPinch = dragSawPinch || isPinching
                 axis = nil
                 armed = nil
-                guard !isZoomed else { return snapBack() }
+                dragSawPinch = false
+                guard !isZoomed, !sawPinch else { return snapBack() }
                 let outcome = SwipeRules.outcome(
                     translation: value.translation,
                     predicted: value.predictedEndTranslation,

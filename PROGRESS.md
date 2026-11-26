@@ -9,7 +9,7 @@ _Last updated: 2026-11-26_
   - `CullFilter`: album, date range, attributes. Attributes are OR-ed together and AND-ed with the album and date range.
   - `CullQueue`: pure queue with a multi-step undo history, plus per-decision counts for the session.
   - `SwipeRules`: the card's swipe rules, free of SwiftUI so they can be unit tested.
-    - The card follows the finger 1:1 from 8 pt.
+    - The card follows the finger 1:1 from 2 pt.
     - At 12 pt the drag locks to horizontal (keep/trash) or vertical (info) for the rest of the gesture.
     - Keep/trash commits past 38% of the card width, or on a flick whose predicted end is ≥ 90% of the width and whose own travel is ≥ 40 pt. Throwing back toward the centre never commits.
     - Info opens on ≥ 60 pt up, or an upward flick.
@@ -34,6 +34,10 @@ _Last updated: 2026-11-26_
       - Cards are keyed by asset, so a card keeps its loaded image as it moves from waiting to top to flying away.
       - A thrown card leaves as a non-interactive layer, and the decision is recorded on release. The next card can be grabbed at once, with no lockout while the animation plays.
       - Undo glides a card that is still flying back to the centre.
+      - The swipe is a `simultaneousGesture`. A plain `.gesture` on the parent waited for the card's own tap / double-tap / pinch to fail, so on a device the card only started moving after the finger had travelled well past the tap tolerance.
+      - Pinches are fenced off: `ZoomableContainer` reports pinch start and stop, and a drag that overlaps a pinch never moves the card or decides.
+      - The navigation stack's full-width "swipe back from content" gesture (iOS 26+) is disabled while culling. It competed with the right swipe (trash). This uses a UIKit bridge, because SwiftUI has no modifier for it. The edge swipe and the Back button still work.
+      - The Live Photo card turns off `PHLivePhotoView`'s own touch handling, because its UIKit recognizer sat outside SwiftUI's gesture system. Touch-and-hold full playback is a SwiftUI long press instead (0.3 s, fails after 10 pt of movement).
     - While dragging, the card tilts, a KEEP / TRASH stamp fades and scales in, and a colour wash deepens.
     - Haptics: a tick when the drag passes the threshold, distinct impacts for keep and trash, a soft one for undo, and success on the summary screen.
     - Session summary when the queue empties: this run's keep and trash tiles, "Review Trash (N)" and "Change Filters".
@@ -60,9 +64,9 @@ _Last updated: 2026-11-26_
 
 ## Verified
 - **Build**: `build_sim` / `build_run_sim` succeed with no warnings (Xcode 27.2, iPhone 18 Pro, iOS 27.2).
-- **Tests**: `test_sim` passes 43/43.
+- **Tests**: `test_sim` passes 41/41.
   - 31 Swift Testing unit tests: queue/undo/counts, filter predicates, SwiftData store (including "in-place caches match a fresh reload"), filter presets (month boundaries, matching), swipe rules (axis lock, 1:1 tracking, threshold, throw-back, flick, vertical lock never decides, info).
-  - 12 XCUITests:
+  - 10 XCUITests:
     - Pinch zoom disables left/right/up swipes; double-tap restores swiping.
     - Trash → restore re-queues the item.
     - Swipe up opens info.
@@ -96,6 +100,9 @@ _Last updated: 2026-11-26_
   - Dark mode.
 
 ## Not verified / known gaps
+- The new gesture setup (simultaneous swipe, content back-swipe disabled, Live Photo long press) hasn't yet been tried on a device.
+  - In the simulator, the logs showed the back-swipe recognizer is found when culling starts and restored when you leave.
+  - Live Photo touch-and-hold playback hasn't been checked.
 - The in-motion look of the stamps, tint and card stack, the haptics, and the feel of the new swipe tracking haven't been checked by hand. AXe can't hold a drag mid-gesture, and the simulator has no haptics.
   - Try them on a device. The tuning values are constants in `SwipeRules`.
 - The trash size uses `PHAssetResource`'s undocumented `fileSize` key. It is guarded, so a missing key just leaves the size out, but it isn't public API.
@@ -107,5 +114,5 @@ _Last updated: 2026-11-26_
 
 ## Next time, start here
 1. `git pull`, then boot the simulator and run `Scripts/seed_simulator.sh` if the library was erased.
-2. In MobileBuildMCP, run `session_show_defaults`, then `test_sim`. The baseline is 43/43 passing.
+2. In MobileBuildMCP, run `session_show_defaults`, then `test_sim`. The baseline is 41/41 passing.
 3. On a device, check the swipe feel and tune the `SwipeRules` constants if needed. Also check the cards with VoiceOver.

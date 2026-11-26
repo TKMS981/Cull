@@ -8,9 +8,14 @@ struct MediaCardView: View {
     @Binding var isZoomed: Bool
     let isMuted: Bool
     var onToggleMute: () -> Void = {}
+    var onPinchingChange: ((Bool) -> Void)? = nil
 
     var body: some View {
-        ZoomableContainer(isZoomed: $isZoomed, onSingleTap: asset.hasAudio ? onToggleMute : nil) {
+        ZoomableContainer(
+            isZoomed: $isZoomed,
+            onSingleTap: asset.hasAudio ? onToggleMute : nil,
+            onPinchingChange: onPinchingChange
+        ) {
             content
         }
         .background(.black)

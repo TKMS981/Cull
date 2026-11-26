@@ -37,6 +37,7 @@ struct CullView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
+        .contentPopGestureDisabled()
         .toolbar {
             ToolbarItem(placement: .principal) { progressHeader }
             // Undo + trash share one Liquid Glass capsule.

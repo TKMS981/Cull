@@ -5,6 +5,8 @@ import SwiftUI
 struct ZoomableContainer<Content: View>: View {
     @Binding var isZoomed: Bool
     var onSingleTap: (() -> Void)? = nil
+    /// Reports when a two-finger pinch starts and stops, so a drag running alongside can stand down.
+    var onPinchingChange: ((Bool) -> Void)? = nil
     @ViewBuilder var content: Content
 
     static var maxScale: CGFloat { 6 }
@@ -14,6 +16,7 @@ struct ZoomableContainer<Content: View>: View {
     @State private var offset: CGSize = .zero
     @GestureState private var pinch: CGFloat = 1
     @GestureState private var pan: CGSize = .zero
+    @GestureState private var isPinching = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -34,11 +37,13 @@ struct ZoomableContainer<Content: View>: View {
             // Parent may request a reset (e.g. after an undo).
             if !zoomed && scale > 1 { reset() }
         }
+        .onChange(of: isPinching) { _, pinching in onPinchingChange?(pinching) }
     }
 
     private func magnify(in size: CGSize) -> some Gesture {
         MagnifyGesture()
             .updating($pinch) { value, state, _ in state = value.magnification }
+            .updating($isPinching) { _, state, _ in state = true }
             .onChanged { value in
                 // Flip to "zoomed" as soon as the pinch opens so a concurrent drag can't cull.
                 if scale * value.magnification > 1.01, !isZoomed { isZoomed = true }

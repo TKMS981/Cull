@@ -16,13 +16,13 @@ nonisolated enum SwipeOutcome: Equatable, Sendable {
 
 /// The card's swipe rules, kept free of SwiftUI so they can be unit tested.
 ///
-/// - The card follows the finger 1:1 from `minimumDistance`.
+/// - The card follows the finger 1:1 from `minimumDistance` (essentially the first movement).
 /// - After `lockDistance` the drag is locked to one axis for the rest of the gesture,
 ///   so a vertical drag can never turn into keep / trash (and vice versa).
 /// - Keep / trash commits only past `commitFraction` of the card width, or on a real
 ///   flick in the same direction; anything less springs back to the centre.
 nonisolated enum SwipeRules {
-    static let minimumDistance: CGFloat = 8
+    static let minimumDistance: CGFloat = 2
     static let lockDistance: CGFloat = 12
     static let commitFraction: CGFloat = 0.38
     /// A flick commits when its predicted end lands this far out (fraction of width)…
