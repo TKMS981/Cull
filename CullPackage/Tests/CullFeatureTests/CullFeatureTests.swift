@@ -234,3 +234,57 @@ struct FilterPresetTests {
         #expect(FilterPreset.thisMonth.matches(filter, now: now, calendar: calendar))
     }
 }
+
+@Suite("SwipeRules")
+struct SwipeRulesTests {
+    private let width: CGFloat = 400 // threshold = 152
+
+    @Test func noLockBeforeLockDistance() {
+        #expect(SwipeRules.lock(CGSize(width: 8, height: 5)) == nil)
+        #expect(SwipeRules.lock(CGSize(width: 14, height: 3)) == .horizontal)
+        #expect(SwipeRules.lock(CGSize(width: 3, height: -14)) == .vertical)
+    }
+
+    @Test func horizontalTracksFingerOneToOne() {
+        let offset = SwipeRules.cardOffset(CGSize(width: -73, height: 10), axis: .horizontal)
+        #expect(offset.width == -73)
+        #expect(SwipeRules.cardOffset(CGSize(width: 30, height: -200), axis: .vertical).width == 0)
+    }
+
+    @Test func shortDragSpringsBack() {
+        let outcome = SwipeRules.outcome(translation: CGSize(width: -100, height: 0), predicted: CGSize(width: -140, height: 0), axis: .horizontal, width: width)
+        #expect(outcome == .cancel)
+    }
+
+    @Test func pastThresholdCommits() {
+        #expect(SwipeRules.outcome(translation: CGSize(width: -160, height: 20), predicted: CGSize(width: -170, height: 20), axis: .horizontal, width: width) == .decide(.keep))
+        #expect(SwipeRules.outcome(translation: CGSize(width: 160, height: 0), predicted: CGSize(width: 165, height: 0), axis: .horizontal, width: width) == .decide(.trash))
+    }
+
+    @Test func thrownBackDoesNotCommit() {
+        let outcome = SwipeRules.outcome(translation: CGSize(width: 170, height: 0), predicted: CGSize(width: 40, height: 0), axis: .horizontal, width: width)
+        #expect(outcome == .cancel)
+    }
+
+    @Test func fastFlickCommitsButTinyFlickDoesNot() {
+        #expect(SwipeRules.outcome(translation: CGSize(width: 60, height: 0), predicted: CGSize(width: 420, height: 0), axis: .horizontal, width: width) == .decide(.trash))
+        #expect(SwipeRules.outcome(translation: CGSize(width: 20, height: 0), predicted: CGSize(width: 420, height: 0), axis: .horizontal, width: width) == .cancel)
+    }
+
+    @Test func verticalLockNeverDecides() {
+        // Far sideways, but the drag locked vertical first.
+        let outcome = SwipeRules.outcome(translation: CGSize(width: 300, height: -20), predicted: CGSize(width: 600, height: -20), axis: .vertical, width: width)
+        #expect(outcome == .cancel)
+        #expect(SwipeRules.armed(CGSize(width: 300, height: 0), axis: .vertical, width: width) == nil)
+    }
+
+    @Test func swipeUpOpensInfo() {
+        #expect(SwipeRules.outcome(translation: CGSize(width: 0, height: -70), predicted: CGSize(width: 0, height: -90), axis: .vertical, width: width) == .info)
+        #expect(SwipeRules.outcome(translation: CGSize(width: 0, height: -30), predicted: CGSize(width: 0, height: -250), axis: .vertical, width: width) == .info)
+        #expect(SwipeRules.outcome(translation: CGSize(width: 0, height: 80), predicted: CGSize(width: 0, height: 200), axis: .vertical, width: width) == .cancel)
+    }
+
+    @Test func releaseBeforeLockCancels() {
+        #expect(SwipeRules.outcome(translation: CGSize(width: 9, height: 0), predicted: CGSize(width: 500, height: 0), axis: nil, width: width) == .cancel)
+    }
+}

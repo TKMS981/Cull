@@ -13,14 +13,12 @@ struct CullView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var session: CullSession?
-    @State private var dragOffset: CGSize = .zero
-    @State private var isFlying = false
     @State private var isZoomed = false
     @State private var isMuted = true
     @State private var infoItem: CullItem?
     @State private var showTrash = false
-    /// Which way the drag would decide if released now (past the threshold), for the haptic tick.
-    @State private var armed: Decision?
+    /// Keep / trash button taps, handed to the deck so it can throw the card.
+    @State private var deckThrow: DeckThrow?
     @State private var feedback: Feedback?
 
     /// One haptic event; `id` makes repeated events of the same kind distinct triggers.
@@ -115,14 +113,15 @@ struct CullView: View {
         } label: {
             Label("元に戻す", systemImage: "arrow.uturn.backward")
         }
-        .disabled(!(session?.canUndo ?? false) || isFlying)
+        .disabled(!(session?.canUndo ?? false))
         .accessibilityIdentifier("undoButton")
     }
 
     private func undo() {
-        guard let session, session.canUndo, !isFlying else { return }
+        guard let session, session.canUndo else { return }
         isZoomed = false
-        session.undo()
+        // Animated so a card that is still flying off glides back to the centre.
+        withAnimation(.smooth(duration: 0.3)) { session.undo() }
         emit(.undo)
     }
 
@@ -170,96 +169,25 @@ struct CullView: View {
     }
 
     private func cardStack(_ session: CullSession, current: CullItem) -> some View {
-        GeometryReader { proxy in
-            ZStack {
-                // Cards waiting behind; they step forward as the top card is dragged away.
-                let behind = session.upcoming(2)
-                ForEach(Array(behind.enumerated()).reversed(), id: \.element.id) { index, item in
-                    let depth = CGFloat(index + 1) - dragProgress
-                    MediaCardView(asset: item.asset, isActive: false, isZoomed: .constant(false), isMuted: true)
-                        .overlay { Color.black.opacity(0.18 * depth).allowsHitTesting(false) }
-                        .clipShape(.rect(cornerRadius: 24))
-                        .scaleEffect(1 - 0.05 * depth)
-                        .offset(y: 24 * depth)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                }
-
-                MediaCardView(
-                    asset: current.asset,
-                    isActive: true,
-                    isZoomed: $isZoomed,
-                    isMuted: isMuted,
-                    onToggleMute: { isMuted.toggle() }
-                )
-                .id(current.id)
-                .overlay { decisionTint }
-                .overlay { decisionBadge }
-                .shadow(color: .black.opacity(0.22), radius: 14, y: 8)
-                .offset(x: dragOffset.width, y: min(dragOffset.height, 0) * 0.25)
-                .rotationEffect(.degrees(Double(dragOffset.width / proxy.size.width) * 12), anchor: .bottom)
-                .gesture(swipeGesture(session, width: proxy.size.width), isEnabled: !isZoomed && !isFlying)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(current.asset.accessibilityKind))
-                .accessibilityValue(isZoomed ? "zoomed" : "fit")
-                .accessibilityIdentifier("mediaCard")
-                .accessibilityAddTraits(.isImage)
-                .accessibilityAction(named: "保持") { fly(.keep, session: session, width: proxy.size.width) }
-                .accessibilityAction(named: "ゴミ箱に移動") { fly(.trash, session: session, width: proxy.size.width) }
-                .accessibilityAction(named: "情報") { infoItem = current }
-            }
-            .onAppear { updateCacheSize(session, proxy.size) }
-            .onChange(of: proxy.size) { _, size in updateCacheSize(session, size) }
-        }
+        SwipeDeckView(
+            current: current,
+            upcoming: session.upcoming(2),
+            isZoomed: $isZoomed,
+            isMuted: $isMuted,
+            throwRequest: $deckThrow,
+            onDecide: { decision in
+                session.decide(decision)
+                emit(decision == .keep ? .keep : .trash)
+                isZoomed = false
+            },
+            onArmed: { emit(.armed) },
+            onInfo: { infoItem = session.current },
+            onSizeChange: { updateCacheSize(session, $0) }
+        )
     }
 
     private func updateCacheSize(_ session: CullSession, _ size: CGSize) {
         session.cacheTargetSize = CGSize(width: size.width * displayScale, height: size.height * displayScale)
-    }
-
-    /// 0 at rest, 1 once the drag passes the decision threshold.
-    private var dragProgress: CGFloat {
-        min(abs(dragOffset.width) / Self.threshold, 1)
-    }
-
-    /// A wash of the decision's color over the card that deepens with the drag.
-    @ViewBuilder
-    private var decisionTint: some View {
-        if dragOffset.width != 0 {
-            RoundedRectangle(cornerRadius: 24)
-                .fill((dragOffset.width < 0 ? Color.green : Color.red).gradient)
-                .opacity(0.28 * dragProgress)
-                .allowsHitTesting(false)
-        }
-    }
-
-    /// KEEP (dragging left) / TRASH (dragging right) stamps that fade and settle in with the drag.
-    @ViewBuilder
-    private var decisionBadge: some View {
-        if dragOffset.width < -8 {
-            stamp("KEEP", systemImage: "checkmark", color: .green, angle: 12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-        } else if dragOffset.width > 8 {
-            stamp("TRASH", systemImage: "trash", color: .red, angle: -12)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
-    }
-
-    private func stamp(_ title: String, systemImage: String, color: Color, angle: Double) -> some View {
-        Label { Text(verbatim: title) } icon: { Image(systemName: systemImage) }
-            .font(.title.weight(.heavy))
-            .kerning(1.5)
-            .foregroundStyle(color)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(.white.opacity(0.85), in: .rect(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(color, lineWidth: 4))
-            .rotationEffect(.degrees(angle))
-            .scaleEffect(0.8 + 0.2 * dragProgress)
-            .opacity(dragProgress)
-            .padding(28)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
     }
 
     private func controls(_ session: CullSession, current: CullItem) -> some View {
@@ -286,7 +214,7 @@ struct CullView: View {
             Spacer()
 
             Button {
-                fly(.keep, session: session, width: 400)
+                requestThrow(.keep)
             } label: {
                 Label("保持", systemImage: "checkmark")
                     .labelStyle(.iconOnly)
@@ -299,7 +227,7 @@ struct CullView: View {
             .accessibilityIdentifier("keepButton")
 
             Button {
-                fly(.trash, session: session, width: 400)
+                requestThrow(.trash)
             } label: {
                 Label("ゴミ箱に移動", systemImage: "trash")
                     .labelStyle(.iconOnly)
@@ -325,7 +253,10 @@ struct CullView: View {
         .labelStyle(.iconOnly)
         .font(.title3)
         .buttonStyle(.glass)
-        .disabled(isFlying)
+    }
+
+    private func requestThrow(_ decision: Decision) {
+        deckThrow = DeckThrow(decision: decision, id: (deckThrow?.id ?? 0) + 1)
     }
 
     private func finished(_ session: CullSession) -> some View {
@@ -337,65 +268,6 @@ struct CullView: View {
             onReviewTrash: { showTrash = true },
             onDone: { dismiss() }
         )
-    }
-
-    // MARK: Gesture
-
-    static let threshold: CGFloat = 110
-
-    private func swipeGesture(_ session: CullSession, width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 12)
-            .onChanged { value in
-                guard !isZoomed else { return }
-                dragOffset = value.translation
-                let dx = value.translation.width
-                let newArmed: Decision? = dx < -Self.threshold ? .keep : dx > Self.threshold ? .trash : nil
-                if newArmed != armed {
-                    armed = newArmed
-                    if newArmed != nil { emit(.armed) }
-                }
-            }
-            .onEnded { value in
-                armed = nil
-                let translation = value.translation
-                let predicted = value.predictedEndTranslation
-                // A pinch that started mid-drag flips isZoomed; never cull in that case.
-                guard !isZoomed else { return snapBack() }
-                if abs(translation.width) > abs(translation.height) {
-                    if translation.width < -Self.threshold || predicted.width < -Self.threshold * 2.5 {
-                        fly(.keep, session: session, width: width)
-                    } else if translation.width > Self.threshold || predicted.width > Self.threshold * 2.5 {
-                        fly(.trash, session: session, width: width)
-                    } else {
-                        snapBack()
-                    }
-                } else {
-                    if translation.height < -60 || predicted.height < -180 {
-                        infoItem = session.current
-                    }
-                    snapBack()
-                }
-            }
-    }
-
-    private func snapBack() {
-        withAnimation(.spring(duration: 0.3, bounce: 0.3)) { dragOffset = .zero }
-    }
-
-    /// Left (keep) flies the card off to the left; right (trash) to the right.
-    private func fly(_ decision: Decision, session: CullSession, width: CGFloat) {
-        guard !isFlying, session.current != nil else { return }
-        isFlying = true
-        let direction: CGFloat = decision == .keep ? -1 : 1
-        withAnimation(.easeIn(duration: 0.2)) {
-            dragOffset = CGSize(width: direction * width * 1.5, height: dragOffset.height)
-        } completion: {
-            session.decide(decision)
-            emit(decision == .keep ? .keep : .trash)
-            dragOffset = .zero
-            isZoomed = false
-            isFlying = false
-        }
     }
 }
 

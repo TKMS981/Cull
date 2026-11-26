@@ -116,6 +116,28 @@ final class CullUITests: XCTestCase {
     }
 
     @MainActor
+    func testShortOrVerticalDragsDoNotCull() throws {
+        let (card, progress) = try startCulling()
+        let initial = remaining(progress)
+        let center = card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+
+        // Slow, short sideways drag (~20% of the card) springs back.
+        center.press(forDuration: 0.2, thenDragTo: card.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)),
+                     withVelocity: .slow, thenHoldForDuration: 0.1)
+        // Mostly-vertical drag with some sideways drift locks vertical: no decision.
+        center.press(forDuration: 0.2, thenDragTo: card.coordinate(withNormalizedOffset: CGVector(dx: 0.62, dy: 0.75)),
+                     withVelocity: .fast, thenHoldForDuration: 0)
+        // Plain downward drag does nothing.
+        let downStart = card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        downStart.press(forDuration: 0.1, thenDragTo: card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)),
+                        withVelocity: .slow, thenHoldForDuration: 0)
+
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertEqual(remaining(progress), initial, "short or vertical drags must not decide")
+        XCTAssertFalse(app.descendants(matching: .any)["infoSheet"].exists, "downward drags must not open info")
+    }
+
+    @MainActor
     func testSwipeUpOpensInfo() throws {
         let (card, _) = try startCulling()
         card.swipeUp()
