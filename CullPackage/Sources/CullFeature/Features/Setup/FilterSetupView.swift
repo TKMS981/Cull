@@ -142,6 +142,7 @@ struct FilterSetupView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(isOn ? .isSelected : [])
+                .accessibilityIdentifier("attribute.\(attribute.rawValue)")
             }
         } header: {
             Text("属性")

@@ -20,6 +20,7 @@ struct LivePhotoCardView: View {
                 AssetImageView(asset: asset, highQuality: highQuality)
                 if let livePhoto, isActive {
                     LivePhotoRepresentable(livePhoto: livePhoto, isMuted: isMuted)
+                        .accessibilityHidden(true)
                 }
             }
             .task(id: isActive) {
@@ -52,6 +53,10 @@ private struct LivePhotoRepresentable: UIViewRepresentable {
         view.contentMode = .scaleAspectFit
         view.livePhoto = livePhoto
         view.isMuted = isMuted
+        // The enclosing card is a single accessibility element; keep the UIKit
+        // subtree (and its internal views) out of the accessibility tree.
+        view.isAccessibilityElement = false
+        view.accessibilityElementsHidden = true
         view.startPlayback(with: .hint)
         return view
     }

@@ -25,7 +25,7 @@ final class CullUITests: XCTestCase {
     }
 
     @MainActor
-    private func startCulling() throws -> (card: XCUIElement, progress: XCUIElement) {
+    private func startCulling(attribute: String? = nil) throws -> (card: XCUIElement, progress: XCUIElement) {
         launch()
         let request = app.buttons["requestAccessButton"]
         if request.waitForExistence(timeout: 2) {
@@ -37,6 +37,11 @@ final class CullUITests: XCTestCase {
         let enabled = NSPredicate(format: "isEnabled == true")
         expectation(for: enabled, evaluatedWith: start)
         waitForExpectations(timeout: 10)
+        if let attribute {
+            let button = app.buttons["attribute.\(attribute)"]
+            XCTAssertTrue(button.waitForExistence(timeout: 5))
+            button.tap()
+        }
         start.tap()
 
         let card = app.descendants(matching: .any)["mediaCard"]
@@ -131,5 +136,15 @@ final class CullUITests: XCTestCase {
         app.buttons["undoButton"].tap()
         waitFor(progress, value: "\(initial)")
         XCTAssertFalse(app.buttons["undoButton"].isEnabled)
+    }
+
+    /// The Live Photo card is announced as a Live Photo. (XCUITest's tree on iOS 27
+    /// also lists `.accessibilityHidden` / `children: .ignore` descendants, so it can't
+    /// prove what VoiceOver skips; that part is checked by hand with VoiceOver.)
+    @MainActor
+    func testLivePhotoCardAnnouncesKind() throws {
+        let (card, _) = try startCulling(attribute: "livePhoto")
+        XCTAssertEqual(card.label, "Live Photo")
+        XCTAssertEqual(card.value as? String, "fit")
     }
 }
