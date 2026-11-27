@@ -349,3 +349,36 @@ struct DeckThrowTests {
         #expect(drag.fenced && drag.offset == .zero)
     }
 }
+
+@Suite("CullSort")
+struct CullSortTests {
+    @Test func dateOrdersMapToFetchDescriptors() throws {
+        let newest = try #require(CullFilter().fetchOptions(sort: .newest).sortDescriptors?.first)
+        #expect(newest.key == "creationDate" && !newest.ascending)
+        let oldest = try #require(CullFilter().fetchOptions(sort: .oldest).sortDescriptors?.first)
+        #expect(oldest.key == "creationDate" && oldest.ascending)
+        // Largest fetches newest first as its tie-break, then re-sorts by size.
+        #expect(CullSort.largest.fetchSortDescriptors.first?.ascending == false)
+    }
+
+    @Test func largestFirstIsStableWithUnknownSizesLast() {
+        let sizes: [Int64?] = [10, nil, 300, 10, 50, nil]
+        #expect(CullSort.largestFirst(sizes) == [2, 4, 0, 3, 1, 5])
+        #expect(CullSort.largestFirst([]) == [])
+    }
+
+    @Test func largestFirstHandlesTenThousandItemsQuickly() {
+        let sizes: [Int64?] = (0..<10_000).map { (i: Int) -> Int64? in
+            guard i % 97 != 0 else { return nil }
+            return Int64((i * 7919) % 100_003)
+        }
+        let clock = ContinuousClock()
+        var order: [Int] = []
+        let elapsed = clock.measure { order = CullSort.largestFirst(sizes) }
+        #expect(order.count == sizes.count)
+        #expect(Set(order).count == sizes.count)
+        let known = order.compactMap { sizes[$0] }
+        #expect(known == known.sorted(by: >))
+        #expect(elapsed < .seconds(1))
+    }
+}

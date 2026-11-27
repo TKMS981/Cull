@@ -5,6 +5,7 @@ import SwiftUI
 /// All three swipes are disabled while the card is zoomed (scale > 1).
 struct CullView: View {
     let filter: CullFilter
+    var sort: CullSort = .oldest
     let includeKept: Bool
 
     @Environment(PhotoLibraryService.self) private var library
@@ -32,6 +33,21 @@ struct CullView: View {
         Group {
             if let session, session.phase == .ready {
                 content(session)
+            } else if let sizing = session?.sizing {
+                VStack(spacing: 12) {
+                    ProgressView(value: Double(sizing.done), total: Double(max(sizing.total, 1)))
+                        .frame(maxWidth: 220)
+                    Text("容量を計算中…")
+                        .font(.headline)
+                    if sizing.total > 0 {
+                        Text("\(sizing.done) / \(sizing.total)")
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("sizingProgress")
             } else {
                 ProgressView("読み込み中…")
             }
@@ -58,7 +74,7 @@ struct CullView: View {
             if let session {
                 session.resumeCaching()
             } else {
-                let newSession = CullSession(filter: filter, includeKept: includeKept, library: library, store: store)
+                let newSession = CullSession(filter: filter, sort: sort, includeKept: includeKept, library: library, store: store)
                 session = newSession
                 await newSession.load()
             }

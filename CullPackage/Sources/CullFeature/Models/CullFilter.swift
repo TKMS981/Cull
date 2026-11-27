@@ -91,18 +91,21 @@ nonisolated public struct CullFilter: Hashable, Sendable {
     }
 
     /// Runs the fetch. Safe off the main actor: PhotoKit fetches are thread-safe.
-    public func fetchAssets() -> PHFetchResult<PHAsset> {
+    public func fetchAssets(sort: CullSort = .oldest) -> PHFetchResult<PHAsset> {
+        let options = fetchOptions(sort: sort)
         if let albumID,
            let collection = PHAssetCollection.fetchAssetCollections(withLocalIdentifiers: [albumID], options: nil).firstObject {
-            return PHAsset.fetchAssets(in: collection, options: fetchOptions)
+            return PHAsset.fetchAssets(in: collection, options: options)
         }
-        return PHAsset.fetchAssets(with: fetchOptions)
+        return PHAsset.fetchAssets(with: options)
     }
 
-    public var fetchOptions: PHFetchOptions {
+    public var fetchOptions: PHFetchOptions { fetchOptions(sort: .oldest) }
+
+    public func fetchOptions(sort: CullSort) -> PHFetchOptions {
         let options = PHFetchOptions()
         options.predicate = predicate
-        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+        options.sortDescriptors = sort.fetchSortDescriptors
         options.includeAssetSourceTypes = [.typeUserLibrary, .typeCloudShared, .typeiTunesSynced]
         return options
     }

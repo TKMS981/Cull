@@ -2,7 +2,7 @@ import Photos
 import SwiftUI
 
 enum Route: Hashable {
-    case cull(CullFilter, includeKept: Bool)
+    case cull(CullFilter, sort: CullSort, includeKept: Bool)
     case trash
 }
 
@@ -14,6 +14,7 @@ struct FilterSetupView: View {
     @Environment(DecisionStore.self) private var store
 
     @AppStorage("includeKept") private var includeKept = false
+    @AppStorage("sortOrder") private var sort: CullSort = .newest
     @State private var albumID: String?
     @State private var useDateRange = false
     @State private var startDate = Calendar.current.date(byAdding: .month, value: -1, to: .now) ?? .now
@@ -39,6 +40,7 @@ struct FilterSetupView: View {
             albumSection
             dateSection
             attributeSection
+            sortSection
             settingsSection
         }
         .onScrollGeometryChange(for: Bool.self) { geometry in
@@ -252,6 +254,25 @@ struct FilterSetupView: View {
         }
     }
 
+    private var sortSection: some View {
+        Section {
+            Picker(selection: $sort) {
+                ForEach(CullSort.allCases) { sort in
+                    Label { Text(sort.title) } icon: { Image(systemName: sort.systemImage) }
+                        .tag(sort)
+                }
+            } label: {
+                Label("並び順", systemImage: "arrow.up.arrow.down")
+            }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("sortPicker")
+        } footer: {
+            if sort == .largest {
+                Text("開始時にファイルサイズを計算します。写真が多いと少し時間がかかります。")
+            }
+        }
+    }
+
     private var settingsSection: some View {
         Section {
             Toggle("整理済み（保持）の写真も再表示する", isOn: $includeKept)
@@ -268,7 +289,7 @@ struct FilterSetupView: View {
 
     private var startButton: some View {
         Button {
-            path.append(.cull(filter, includeKept: includeKept))
+            path.append(.cull(filter, sort: sort, includeKept: includeKept))
         } label: {
             VStack(spacing: 2) {
                 Text("整理を始める").font(.headline)

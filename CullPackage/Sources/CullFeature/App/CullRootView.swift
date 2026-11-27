@@ -37,8 +37,8 @@ public struct CullRootView: View {
                     FilterSetupView(path: $path)
                         .navigationDestination(for: Route.self) { route in
                             switch route {
-                            case let .cull(filter, includeKept):
-                                CullView(filter: filter, includeKept: includeKept)
+                            case let .cull(filter, sort, includeKept):
+                                CullView(filter: filter, sort: sort, includeKept: includeKept)
                             case .trash:
                                 TrashView()
                             }

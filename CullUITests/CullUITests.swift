@@ -287,6 +287,35 @@ final class CullUITests: XCTestCase {
         waitFor(progress, value: "\(initial)")
     }
 
+    /// "Largest first" measures sizes off the main actor and then starts a normal session
+    /// over the same items as the date orders.
+    @MainActor
+    func testLargestFirstSortStartsSession() throws {
+        launch()
+        let start = app.buttons["startButton"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: start)
+        waitForExpectations(timeout: 10)
+
+        let picker = app.buttons["sortPicker"]
+        for _ in 0..<4 where !picker.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        picker.tap()
+        let largest = app.buttons.matching(NSPredicate(format: "label IN %@", ["Largest First", "容量が大きい順"])).firstMatch
+        XCTAssertTrue(largest.waitForExistence(timeout: 5))
+        largest.tap()
+        // The menu closes and the row shows the chosen order.
+        let shown = app.staticTexts.matching(NSPredicate(format: "label IN %@", ["Largest First", "容量が大きい順"])).firstMatch
+        XCTAssertTrue(shown.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Newest First"].exists)
+
+        start.tap()
+        let card = app.descendants(matching: .any)["mediaCard"]
+        XCTAssertTrue(card.waitForExistence(timeout: 20))
+        let progress = app.descendants(matching: .any)["progress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(remaining(progress), 0)
+    }
+
     /// Quick-start presets set the filter in one tap and clear it on a second tap.
     @MainActor
     func testQuickStartPresetsApplyAndClear() throws {

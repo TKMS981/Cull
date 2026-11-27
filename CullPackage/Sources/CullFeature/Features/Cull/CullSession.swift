@@ -16,8 +16,16 @@ final class CullSession {
     private(set) var phase: Phase = .loading
     private(set) var queue = CullQueue<CullItem>([])
     private(set) var total = 0
+    /// Set while `.largest` measures file sizes before the first card.
+    private(set) var sizing: SizingProgress?
+
+    struct SizingProgress: Equatable {
+        var done: Int
+        var total: Int
+    }
 
     let filter: CullFilter
+    let sort: CullSort
     let includeKept: Bool
 
     @ObservationIgnored private let library: PhotoLibraryService
@@ -30,8 +38,9 @@ final class CullSession {
     static let prefetchAhead = 3
     static let keepBehind = 2
 
-    init(filter: CullFilter, includeKept: Bool, library: PhotoLibraryService, store: DecisionStore, loader: ImageLoader = .shared) {
+    init(filter: CullFilter, sort: CullSort = .oldest, includeKept: Bool, library: PhotoLibraryService, store: DecisionStore, loader: ImageLoader = .shared) {
         self.filter = filter
+        self.sort = sort
         self.includeKept = includeKept
         self.library = library
         self.store = store
@@ -53,8 +62,16 @@ final class CullSession {
     /// Fetches and filters off the main actor so large libraries don't hitch the UI.
     func load() async {
         guard phase == .loading else { return }
-        let loaded = await Self.fetchUndecided(filter: filter, skipping: skippedIDs)
+        let progress: @Sendable (Int, Int) -> Void = { [weak self] done, total in
+            Task { @MainActor in
+                guard let self, self.phase == .loading else { return }
+                self.sizing = SizingProgress(done: done, total: total)
+            }
+        }
+        if sort == .largest { sizing = SizingProgress(done: 0, total: 0) }
+        let loaded = await Self.fetchUndecided(filter: filter, sort: sort, skipping: skippedIDs, progress: progress)
         guard phase == .loading else { return }
+        sizing = nil
         fetchResult = loaded.fetchResult
         queue = CullQueue(loaded.assets.map(CullItem.init))
         total = loaded.assets.count
@@ -70,12 +87,22 @@ final class CullSession {
     }
 
     @concurrent
-    nonisolated static func fetchUndecided(filter: CullFilter, skipping skip: Set<String>) async -> LoadedAssets {
-        let result = filter.fetchAssets()
+    nonisolated static func fetchUndecided(
+        filter: CullFilter,
+        sort: CullSort,
+        skipping skip: Set<String>,
+        progress: @escaping @Sendable (Int, Int) -> Void = { _, _ in }
+    ) async -> LoadedAssets {
+        let result = filter.fetchAssets(sort: sort)
         var assets: [PHAsset] = []
         assets.reserveCapacity(result.count)
         result.enumerateObjects { asset, _, _ in
             if !skip.contains(asset.localIdentifier) { assets.append(asset) }
+        }
+        if sort == .largest {
+            // Already off the main actor; sizes are measured in parallel.
+            let sizes = await AssetSizeReader.bytes(of: assets, progress: progress)
+            assets = CullSort.largestFirst(sizes).map { assets[$0] }
         }
         return LoadedAssets(fetchResult: result, assets: assets)
     }
