@@ -18,6 +18,21 @@ final class AssetDecision {
     var decision: Decision { Decision(rawValue: decisionRaw) ?? .keep }
 }
 
+/// One confirmed `deleteAssets` from Cull's trash: how many items, and how many bytes
+/// they took up (sizes PhotoKit didn't report count as zero).
+@Model
+final class DeletionRecord {
+    var deletedAt: Date
+    var count: Int
+    var bytes: Int64
+
+    init(deletedAt: Date = .now, count: Int, bytes: Int64) {
+        self.deletedAt = deletedAt
+        self.count = count
+        self.bytes = bytes
+    }
+}
+
 struct TrashEntry: Identifiable, Hashable {
     let id: String
     let trashedAt: Date
@@ -36,6 +51,9 @@ final class DecisionStore {
     /// Newest first.
     private(set) var trash: [TrashEntry] = []
     private(set) var trashedIDs: Set<String> = []
+    /// All-time totals of what was really deleted through Cull.
+    private(set) var freedBytes: Int64 = 0
+    private(set) var deletedCount = 0
 
     init(container: ModelContainer) {
         context = ModelContext(container)
@@ -44,7 +62,7 @@ final class DecisionStore {
 
     static func makeContainer(inMemory: Bool) throws -> ModelContainer {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: inMemory)
-        return try ModelContainer(for: AssetDecision.self, configurations: configuration)
+        return try ModelContainer(for: AssetDecision.self, DeletionRecord.self, configurations: configuration)
     }
 
     func record(_ decision: Decision, for id: String) {
@@ -110,6 +128,16 @@ final class DecisionStore {
         keptIDs = []
     }
 
+    /// Adds a confirmed deletion to the all-time totals.
+    func recordDeletion(count: Int, bytes: Int64) {
+        guard count > 0 else { return }
+        let bytes = max(bytes, 0)
+        context.insert(DeletionRecord(count: count, bytes: bytes))
+        guard save() else { return }
+        deletedCount += count
+        freedBytes += bytes
+    }
+
     /// Existing rows for `ids`, in one fetch (single-item and bulk changes alike).
     private func fetch(_ ids: some Collection<String>) -> [String: AssetDecision] {
         guard !ids.isEmpty else { return [:] }
@@ -149,5 +177,8 @@ final class DecisionStore {
         keptIDs = Set(all.lazy.filter { $0.decision == .keep }.map(\.localIdentifier))
         trash = all.filter { $0.decision == .trash }.map { TrashEntry(id: $0.localIdentifier, trashedAt: $0.decidedAt) }
         trashedIDs = Set(trash.map(\.id))
+        let deletions = (try? context.fetch(FetchDescriptor<DeletionRecord>())) ?? []
+        deletedCount = deletions.reduce(0) { $0 + $1.count }
+        freedBytes = deletions.reduce(0) { $0 + $1.bytes }
     }
 }

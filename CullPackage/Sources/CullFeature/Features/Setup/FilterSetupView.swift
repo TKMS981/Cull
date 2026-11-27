@@ -38,6 +38,7 @@ struct FilterSetupView: View {
         Form {
             if library.isLimited { limitedSection }
             quickStartSection
+            if store.deletedCount > 0 { toolsSection }
             albumSection
             dateSection
             attributeSection
@@ -186,6 +187,37 @@ struct FilterSetupView: View {
                 useDateRange = false
             }
         }
+    }
+
+    /// Space freed so far.
+    private var toolsSection: some View {
+        Section {
+            savingsRow
+        } header: {
+            Text("容量を空ける")
+        }
+    }
+
+    private var savingsRow: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "leaf.fill")
+                .font(.title2)
+                .foregroundStyle(.green.gradient)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("これまで合計 \(store.freedBytes.formatted(.byteCount(style: .file))) 削減")
+                    .font(.headline)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                Text("\(store.deletedCount) 件を削除しました")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("savingsSummary")
     }
 
     private var albumSection: some View {

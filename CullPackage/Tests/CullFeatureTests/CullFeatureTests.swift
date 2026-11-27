@@ -491,3 +491,31 @@ struct CullFilterMatchingTests {
         #expect(!filter.matches(mediaType: .image, subtypes: [], isFavorite: false, creationDate: nil))
     }
 }
+
+@Suite("Space freed", .serialized)
+struct SavingsTests {
+    @Test func deletionsAddUpAndPersist() throws {
+        let container = try DecisionStore.makeContainer(inMemory: true)
+        let store = DecisionStore(container: container)
+        #expect(store.deletedCount == 0)
+        #expect(store.freedBytes == 0)
+        store.recordDeletion(count: 3, bytes: 12_000_000)
+        store.recordDeletion(count: 1, bytes: 500)
+        store.recordDeletion(count: 0, bytes: 99)     // nothing deleted: ignored
+        #expect(store.deletedCount == 4)
+        #expect(store.freedBytes == 12_000_500)
+        let reloaded = DecisionStore(container: container)
+        #expect(reloaded.deletedCount == 4)
+        #expect(reloaded.freedBytes == 12_000_500)
+    }
+
+    @Test func resettingKeptHistoryKeepsTheTotals() throws {
+        let store = DecisionStore(container: try DecisionStore.makeContainer(inMemory: true))
+        store.record(.keep, for: ["a"])
+        store.recordDeletion(count: 2, bytes: 1_000)
+        store.resetKept()
+        store.clear(ids: ["a"])
+        #expect(store.deletedCount == 2)
+        #expect(store.freedBytes == 1_000)
+    }
+}

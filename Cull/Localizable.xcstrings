@@ -35,6 +35,29 @@
       },
       "extractionState" : "manual"
     },
+    "%lld 件を削除しました" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld item deleted"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld items deleted"
+                }
+              }
+            }
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "%lld 件を整理しました。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -157,6 +180,17 @@
           }
         }
       }
+    },
+    "これまで合計 %@ 削減" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ freed so far"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "すべて" : {
       "localizations" : {
@@ -759,6 +793,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Largest First"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "容量を空ける" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free Up Space"
           }
         }
       },

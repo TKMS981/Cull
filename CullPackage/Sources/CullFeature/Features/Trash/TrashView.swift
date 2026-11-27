@@ -183,8 +183,13 @@ struct TrashView: View {
     private func delete(ids: [String]) async {
         isDeleting = true
         defer { isDeleting = false }
+        // Sizes have to be read before the delete: afterwards the assets are gone.
+        let missing = ids.filter { sizes[$0] == nil }
+        if !missing.isEmpty { sizes.merge(await AssetSizeReader.bytes(forIDs: missing)) { _, new in new } }
+        let bytes = ids.compactMap { sizes[$0] }.reduce(0, +)
         switch await DeletionService.delete(ids: ids) {
         case .deleted:
+            store.recordDeletion(count: ids.count, bytes: bytes)
             store.clear(ids: ids)
             selection.subtract(ids)
             if let preview, ids.contains(preview.id) { self.preview = nil }
