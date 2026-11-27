@@ -124,17 +124,19 @@ final class CullUITests: XCTestCase {
         // Slow, short sideways drag (~20% of the card) springs back.
         center.press(forDuration: 0.2, thenDragTo: card.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5)),
                      withVelocity: .slow, thenHoldForDuration: 0.1)
-        // Mostly-vertical drag with some sideways drift locks vertical: no decision.
-        center.press(forDuration: 0.2, thenDragTo: card.coordinate(withNormalizedOffset: CGVector(dx: 0.62, dy: 0.75)),
-                     withVelocity: .fast, thenHoldForDuration: 0)
-        // Plain downward drag does nothing.
+        // Mostly-vertical drag with some sideways drift locks vertical: no keep / trash,
+        // and too short (and slow) to skip.
+        center.press(forDuration: 0.2, thenDragTo: card.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.6)),
+                     withVelocity: .slow, thenHoldForDuration: 0.1)
+        // A short slow downward drag (under the skip distance) does nothing.
         let downStart = card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
-        downStart.press(forDuration: 0.1, thenDragTo: card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)),
-                        withVelocity: .slow, thenHoldForDuration: 0)
+        downStart.press(forDuration: 0.1, thenDragTo: card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.38)),
+                        withVelocity: .slow, thenHoldForDuration: 0.1)
 
         Thread.sleep(forTimeInterval: 1)
         XCTAssertEqual(remaining(progress), initial, "short or vertical drags must not decide")
         XCTAssertFalse(app.descendants(matching: .any)["infoSheet"].exists, "downward drags must not open info")
+        XCTAssertFalse(app.staticTexts["skipTally"].exists, "short downward drags must not skip")
     }
 
     /// Regression: fast back-to-back swipes used to leave a card spinning up the screen.
@@ -162,6 +164,34 @@ final class CullUITests: XCTestCase {
 
         for _ in 0..<4 { app.buttons["undoButton"].tap() }
         waitFor(progress, value: "\(initial)")
+    }
+
+    /// Skip (button or swipe down) passes over an item for this session only: no keep,
+    /// no trash, undoable, and it's still unsorted afterwards.
+    @MainActor
+    func testSkipPassesOverWithoutSaving() throws {
+        let (card, progress) = try startCulling()
+        let initial = remaining(progress)
+        XCTAssertGreaterThan(initial, 2)
+
+        app.buttons["skipButton"].tap()
+        waitFor(progress, value: "\(initial - 1)")
+        card.swipeDown()
+        waitFor(progress, value: "\(initial - 2)")
+        let tally = app.staticTexts["skipTally"]
+        XCTAssertTrue(tally.waitForExistence(timeout: 2))
+        XCTAssertTrue(tally.label.contains("2"), tally.label)
+        XCTAssertEqual(app.buttons["trashButton"].value as? String, "0")
+
+        app.buttons["undoButton"].tap()
+        waitFor(progress, value: "\(initial - 1)")
+
+        // Nothing was saved: back on the setup screen every item is still unsorted.
+        app.buttons["BackButton"].tap()
+        let start = app.buttons["startButton"]
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        expectation(for: NSPredicate(format: "label CONTAINS %@", " \(initial) "), evaluatedWith: start)
+        waitForExpectations(timeout: 5)
     }
 
     @MainActor

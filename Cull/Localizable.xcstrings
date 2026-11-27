@@ -454,6 +454,17 @@
       },
       "extractionState" : "manual"
     },
+    "今回はスキップして、次回また表示します" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skips it for now. It shows up again next time."
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "今月" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -487,6 +498,40 @@
         }
       }
     },
+    "保留" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "保留した %lld 件は次回また表示されます。" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld skipped item will show up again next time."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld skipped items will show up again next time."
+                }
+              }
+            }
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "元に戻す" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -508,6 +553,17 @@
           }
         }
       }
+    },
+    "再生位置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback Position"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "写真" : {
       "extractionState" : "stale",

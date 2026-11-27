@@ -33,6 +33,9 @@ final class CullSession {
     @ObservationIgnored private let loader: ImageLoader
     @ObservationIgnored private var fetchResult: PHFetchResult<PHAsset>?
     @ObservationIgnored private var cached: [PHAsset] = []
+    /// What the store held for an item before this session decided it, so undo can
+    /// put that back (with "show kept items again", undoing a trash re-keeps it).
+    @ObservationIgnored private var previousDecisions: [String: Decision] = [:]
     @ObservationIgnored var cacheTargetSize: CGSize = CGSize(width: 1200, height: 2400)
 
     static let prefetchAhead = 3
@@ -53,6 +56,7 @@ final class CullSession {
     func upcoming(_ count: Int) -> [CullItem] { Array(queue.pending.dropFirst().prefix(count)) }
     var keptCount: Int { queue.count(of: .keep) }
     var trashedCount: Int { queue.count(of: .trash) }
+    var skippedCount: Int { queue.count(of: .skip) }
     var remaining: Int { queue.remaining }
     var canUndo: Bool { queue.canUndo }
     var decidedCount: Int { max(total - remaining, 0) }
@@ -113,15 +117,27 @@ final class CullSession {
 
     // MARK: Decisions
 
+    /// Keep / trash are saved; skip only moves past the item for this session.
     func decide(_ decision: Decision) {
-        guard let item = queue.decide(decision) else { return }
-        store.record(decision, for: item.id)
+        guard let id = queue.current?.id else { return }
+        if decision.isPersisted {
+            previousDecisions[id] = store.decision(for: id)
+        }
+        guard queue.decide(decision) != nil else { return }
+        store.record(decision, for: id)
         updateCache()
     }
 
     func undo() {
         guard let entry = queue.undo() else { return }
-        store.clear(ids: [entry.element.id])
+        let id = entry.element.id
+        if entry.decision.isPersisted {
+            if let previous = previousDecisions.removeValue(forKey: id) {
+                store.record(previous, for: id)
+            } else {
+                store.clear(ids: [id])
+            }
+        }
         updateCache()
     }
 

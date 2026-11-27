@@ -3,6 +3,12 @@ import Foundation
 public enum Decision: String, Codable, Sendable {
     case keep
     case trash
+    /// "Not now": passed over for this session only. Never persisted, so the item
+    /// stays unsorted and comes up again next time.
+    case skip
+
+    /// Whether the decision is saved to the store (and so survives the session).
+    public var isPersisted: Bool { self != .skip }
 }
 
 /// Pure queue + undo history for a cull session. Generic so it can be unit-tested

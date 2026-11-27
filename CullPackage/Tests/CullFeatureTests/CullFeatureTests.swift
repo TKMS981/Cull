@@ -382,3 +382,66 @@ struct CullSortTests {
         #expect(elapsed < .seconds(1))
     }
 }
+
+@Suite("Skip (not now)")
+struct SkipTests {
+    private let width: CGFloat = 400
+
+    @Test func skipIsCountedButUndoable() {
+        var q = CullQueue(["a", "b", "c"].map(Item.init))
+        q.decide(.skip)
+        q.decide(.keep)
+        #expect(q.count(of: .skip) == 1)
+        #expect(q.current?.id == "c")
+        q.undo()
+        #expect(q.undo()?.decision == .skip)
+        #expect(q.current?.id == "a")
+        #expect(q.count(of: .skip) == 0)
+    }
+
+    @Test func storeNeverPersistsSkip() throws {
+        let container = try DecisionStore.makeContainer(inMemory: true)
+        let store = DecisionStore(container: container)
+        store.record(.keep, for: "a")
+        store.record(.skip, for: "a")
+        store.record(.skip, for: "b")
+        #expect(store.keptIDs == ["a"], "skipping a kept item leaves it kept")
+        #expect(store.decision(for: "b") == nil)
+        #expect(DecisionStore(container: container).keptIDs == ["a"])
+    }
+
+    @Test func batchRecordMatchesAFreshReload() throws {
+        let container = try DecisionStore.makeContainer(inMemory: true)
+        let store = DecisionStore(container: container)
+        store.record(.keep, for: ["a", "b", "c"])
+        store.record(.trash, for: ["b", "d"])
+        #expect(store.keptIDs == ["a", "c"])
+        #expect(store.trashedIDs == ["b", "d"])
+        let reloaded = DecisionStore(container: container)
+        #expect(reloaded.keptIDs == store.keptIDs)
+        #expect(reloaded.trashedIDs == store.trashedIDs)
+    }
+
+    @Test func swipeDownSkips() {
+        #expect(SwipeRules.outcome(translation: CGSize(width: 4, height: 140), predicted: CGSize(width: 4, height: 160), axis: .vertical, width: width) == .decide(.skip))
+        #expect(SwipeRules.outcome(translation: CGSize(width: 0, height: 50), predicted: CGSize(width: 0, height: 400), axis: .vertical, width: width) == .decide(.skip), "flick")
+        #expect(SwipeRules.armed(CGSize(width: 0, height: 130), axis: .vertical, width: width) == .skip)
+    }
+
+    @Test func shortOrThrownBackDownDragDoesNotSkip() {
+        #expect(SwipeRules.outcome(translation: CGSize(width: 0, height: 80), predicted: CGSize(width: 0, height: 200), axis: .vertical, width: width) == .cancel)
+        #expect(SwipeRules.outcome(translation: CGSize(width: 0, height: 150), predicted: CGSize(width: 0, height: 60), axis: .vertical, width: width) == .cancel)
+        #expect(SwipeRules.outcome(translation: CGSize(width: 0, height: 20), predicted: CGSize(width: 0, height: 500), axis: .vertical, width: width) == .cancel, "tiny flick")
+        // Horizontal-locked drags never skip, however far down they drift.
+        #expect(SwipeRules.outcome(translation: CGSize(width: 60, height: 300), predicted: CGSize(width: 70, height: 600), axis: .horizontal, width: width) == .cancel)
+    }
+
+    @Test func skipDropsStraightDownOutOfTheDeck() {
+        let size = CGSize(width: 400, height: 640)
+        let pose = SwipeRules.throwPose(.skip, release: CGSize(width: 0, height: 90), size: size)
+        #expect(pose.offset.width == 0)
+        #expect(pose.degrees == 0)
+        #expect(pose.offset.height > size.height)
+        #expect(SwipeRules.cardOffset(CGSize(width: 0, height: 100), axis: .vertical).height == 60)
+    }
+}

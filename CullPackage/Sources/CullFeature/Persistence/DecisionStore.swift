@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import SwiftData
 
-/// One persisted keep/trash decision per asset.
+/// One persisted keep/trash decision per asset (`.skip` is never stored).
 @Model
 final class AssetDecision {
     @Attribute(.unique) var localIdentifier: String
@@ -48,30 +48,50 @@ final class DecisionStore {
     }
 
     func record(_ decision: Decision, for id: String) {
+        record(decision, for: [id])
+    }
+
+    /// Records one decision for many items with a single save. `.skip` is never
+    /// persisted, so it's a no-op here.
+    func record(_ decision: Decision, for ids: some Sequence<String>) {
+        guard decision.isPersisted else { return }
+        let ids = Array(Set(ids))
+        guard !ids.isEmpty else { return }
         let decidedAt = Date.now
-        if let existing = fetch(id) {
-            existing.decisionRaw = decision.rawValue
-            existing.decidedAt = decidedAt
-        } else {
-            context.insert(AssetDecision(localIdentifier: id, decision: decision, decidedAt: decidedAt))
+        let existing = fetch(ids)
+        for id in ids {
+            if let row = existing[id] {
+                row.decisionRaw = decision.rawValue
+                row.decidedAt = decidedAt
+            } else {
+                context.insert(AssetDecision(localIdentifier: id, decision: decision, decidedAt: decidedAt))
+            }
         }
         guard save() else { return }
-        forget([id])
+        let idSet = Set(ids)
+        forget(idSet)
         switch decision {
         case .keep:
-            keptIDs.insert(id)
+            keptIDs.formUnion(idSet)
         case .trash:
-            trash.insert(TrashEntry(id: id, trashedAt: decidedAt), at: 0)
-            trashedIDs.insert(id)
+            trash.insert(contentsOf: ids.map { TrashEntry(id: $0, trashedAt: decidedAt) }, at: 0)
+            trashedIDs.formUnion(idSet)
+        case .skip:
+            break
         }
+    }
+
+    /// The saved decision for `id`, from the in-memory caches.
+    func decision(for id: String) -> Decision? {
+        if keptIDs.contains(id) { return .keep }
+        if trashedIDs.contains(id) { return .trash }
+        return nil
     }
 
     func clear(ids: some Sequence<String>) {
         let ids = Set(ids)
         guard !ids.isEmpty else { return }
-        for id in ids {
-            if let existing = fetch(id) { context.delete(existing) }
-        }
+        for row in fetch(ids).values { context.delete(row) }
         guard save() else { return }
         forget(ids)
     }
@@ -90,10 +110,13 @@ final class DecisionStore {
         keptIDs = []
     }
 
-    private func fetch(_ id: String) -> AssetDecision? {
-        var descriptor = FetchDescriptor<AssetDecision>(predicate: #Predicate { $0.localIdentifier == id })
-        descriptor.fetchLimit = 1
-        return try? context.fetch(descriptor).first
+    /// Existing rows for `ids`, in one fetch (single-item and bulk changes alike).
+    private func fetch(_ ids: some Collection<String>) -> [String: AssetDecision] {
+        guard !ids.isEmpty else { return [:] }
+        let wanted = Array(ids)
+        let descriptor = FetchDescriptor<AssetDecision>(predicate: #Predicate { wanted.contains($0.localIdentifier) })
+        let rows = (try? context.fetch(descriptor)) ?? []
+        return Dictionary(rows.map { ($0.localIdentifier, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     /// Drops `ids` from the in-memory caches.

@@ -108,6 +108,8 @@ struct SwipeDeckView: View {
     private func card(_ layer: Layer, size: CGSize) -> some View {
         let width = size.width
         let isTop = layer.role == .top
+        /// Waiting cards sit lower in the stack; only a moving card shows a stamp for it.
+        var isMoving: Bool { if case .waiting = layer.role { false } else { true } }
         let depth: CGFloat
         let offset: CGSize
         let degrees: Double
@@ -142,6 +144,7 @@ struct SwipeDeckView: View {
         .overlay { Color.black.opacity(0.18 * depth).allowsHitTesting(false) }
         .overlay { decisionTint(offset.width, progress: lean) }
         .overlay { decisionBadge(offset.width, progress: lean) }
+        .overlay { if isMoving { skipBadge(offset) } }
         .clipShape(.rect(cornerRadius: 24))
         .shadow(color: .black.opacity(depth == 0 ? 0.22 : 0), radius: 14, y: 8)
         .scaleEffect(1 - 0.05 * depth)
@@ -162,6 +165,7 @@ struct SwipeDeckView: View {
         .accessibilityAddTraits(.isImage)
         .accessibilityAction(named: "保持") { throwCard(.keep, size: size) }
         .accessibilityAction(named: "ゴミ箱に移動") { throwCard(.trash, size: size) }
+        .accessibilityAction(named: "保留") { throwCard(.skip, size: size) }
         .accessibilityAction(named: "情報") { onInfo() }
     }
 
@@ -190,6 +194,23 @@ struct SwipeDeckView: View {
         } else if x > Self.stampAppearsAfter {
             stamp("TRASH", systemImage: "trash", color: .red, angle: -12, progress: progress)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+
+    /// SKIP (dragging down): only for a card moving straight down, so a keep / trash
+    /// throw (which also drops a little) never shows it.
+    @ViewBuilder
+    private func skipBadge(_ offset: CGSize) -> some View {
+        if abs(offset.width) < 1, offset.height > Self.stampAppearsAfter {
+            let progress = min(offset.height / (SwipeRules.skipDistance * SwipeRules.downFollow), 1)
+            ZStack {
+                Rectangle()
+                    .fill(Color.indigo.gradient)
+                    .opacity(0.22 * progress)
+                    .allowsHitTesting(false)
+                stamp("SKIP", systemImage: "forward.fill", color: .indigo, angle: 0, progress: progress)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            }
         }
     }
 
@@ -272,7 +293,7 @@ struct SwipeDeckView: View {
         withTransaction(transaction) { drag = nil }
     }
 
-    /// Left (keep) flies the card off to the left; right (trash) to the right.
+    /// Left (keep) flies the card off to the left; right (trash) to the right; skip drops it.
     /// The decision is recorded immediately; only the visual flight is animated.
     private func throwCard(_ decision: Decision, size: CGSize) {
         let item = current

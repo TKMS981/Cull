@@ -6,6 +6,8 @@ struct SessionSummaryView: View {
     let total: Int
     let kept: Int
     let trashed: Int
+    /// Passed over this session; they stay unsorted for next time.
+    var skipped: Int = 0
     /// Everything in Cull's trash, not just this session's.
     let trashCount: Int
     var onReviewTrash: () -> Void
@@ -47,12 +49,23 @@ struct SessionSummaryView: View {
             }
             .multilineTextAlignment(.center)
 
+            if skipped > 0 {
+                Text("保留した \(skipped) 件は次回また表示されます。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
             GlassEffectContainer(spacing: 12) {
                 HStack(spacing: 12) {
                     tile("保持", systemImage: "checkmark", count: kept, color: .green)
                         .accessibilityIdentifier("summaryKept")
                     tile("ゴミ箱へ", systemImage: "trash", count: trashed, color: .red)
                         .accessibilityIdentifier("summaryTrashed")
+                    if skipped > 0 {
+                        tile("保留", systemImage: "forward.fill", count: skipped, color: .indigo)
+                            .accessibilityIdentifier("summarySkipped")
+                    }
                 }
             }
 

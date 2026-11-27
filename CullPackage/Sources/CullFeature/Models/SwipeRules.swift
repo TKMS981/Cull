@@ -4,7 +4,7 @@ import CoreGraphics
 nonisolated enum SwipeAxis: Sendable {
     /// Keep / trash.
     case horizontal
-    /// Info (up); down does nothing.
+    /// Info (up) / skip (down).
     case vertical
 }
 
@@ -21,6 +21,7 @@ nonisolated enum SwipeOutcome: Equatable, Sendable {
 ///   so a vertical drag can never turn into keep / trash (and vice versa).
 /// - Keep / trash commits only past `commitFraction` of the card width, or on a real
 ///   flick in the same direction; anything less springs back to the centre.
+/// - Vertical: up opens info, down skips ("not now") past `skipDistance` or on a flick.
 nonisolated enum SwipeRules {
     static let minimumDistance: CGFloat = 2
     static let lockDistance: CGFloat = 12
@@ -32,6 +33,13 @@ nonisolated enum SwipeRules {
     static let infoDistance: CGFloat = 60
     static let infoFlick: CGFloat = 180
     static let minimumInfoFlickTravel: CGFloat = 24
+    /// Skip ("not now") commits on a drag this far down…
+    static let skipDistance: CGFloat = 120
+    /// …or a downward flick whose predicted end is this far, with some real travel.
+    static let skipFlick: CGFloat = 280
+    static let minimumSkipFlickTravel: CGFloat = 40
+    /// How much of a downward drag the card follows (up only rubber-bands).
+    static let downFollow: CGFloat = 0.6
 
     static func threshold(width: CGFloat) -> CGFloat { width * commitFraction }
 
@@ -48,13 +56,15 @@ nonisolated enum SwipeRules {
             // Horizontal tracks the finger exactly; a little vertical give keeps it feeling held.
             CGSize(width: translation.width, height: translation.height * 0.12)
         case .vertical:
-            // Rubber-band upwards only; never sideways once locked vertical.
-            CGSize(width: 0, height: min(translation.height, 0) * 0.25)
+            // Never sideways once locked vertical. Up rubber-bands (info); down follows
+            // most of the way, toward skip.
+            CGSize(width: 0, height: translation.height < 0 ? translation.height * 0.25 : translation.height * downFollow)
         }
     }
 
     /// The decision a release right now would make by distance alone (for the "armed" haptic).
     static func armed(_ translation: CGSize, axis: SwipeAxis?, width: CGFloat) -> Decision? {
+        if axis == .vertical { return translation.height >= skipDistance ? .skip : nil }
         guard axis == .horizontal else { return nil }
         let threshold = threshold(width: width)
         if translation.width <= -threshold { return .keep }
@@ -78,6 +88,9 @@ nonisolated enum SwipeRules {
         case .vertical:
             let dy = translation.height, py = predicted.height
             if dy <= -infoDistance || (py <= -infoFlick && dy <= -minimumInfoFlickTravel) { return .info }
+            // A downward drag thrown back up never skips.
+            if dy >= skipDistance && py >= skipDistance { return .decide(.skip) }
+            if py >= skipFlick && dy >= minimumSkipFlickTravel { return .decide(.skip) }
             return .cancel
         }
     }
@@ -116,6 +129,10 @@ nonisolated extension SwipeRules {
     /// end at or below their resting height: an upward drift at release is dropped,
     /// so a thrown card can't sail up the screen.
     static func throwPose(_ decision: Decision, release: CGSize, size: CGSize) -> CardPose {
+        if decision == .skip {
+            // Skip drops the card straight down, upright, out of the deck.
+            return CardPose(offset: CGSize(width: 0, height: max(release.height, 0) + max(size.height, 1) * 1.2), degrees: 0)
+        }
         let width = max(size.width, 1)
         let direction: CGFloat = decision == .keep ? -1 : 1
         let y = max(release.height, 0) + throwDrop

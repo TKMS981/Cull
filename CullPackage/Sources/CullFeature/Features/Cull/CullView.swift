@@ -24,7 +24,7 @@ struct CullView: View {
 
     /// One haptic event; `id` makes repeated events of the same kind distinct triggers.
     private struct Feedback: Equatable {
-        enum Kind { case armed, keep, trash, undo }
+        enum Kind { case armed, keep, trash, skip, undo }
         let kind: Kind
         let id: Int
     }
@@ -90,6 +90,7 @@ struct CullView: View {
             case .armed: .impact(weight: .medium, intensity: 0.7)
             case .keep: .impact(weight: .light)
             case .trash: .impact(weight: .heavy, intensity: 0.8)
+            case .skip: .selection
             case .undo: .impact(flexibility: .soft, intensity: 0.8)
             case nil: nil
             }
@@ -110,6 +111,11 @@ struct CullView: View {
                             .foregroundStyle(.green)
                         Label { Text(session.trashedCount, format: .number) } icon: { Image(systemName: "trash") }
                             .foregroundStyle(.red)
+                        if session.skippedCount > 0 {
+                            Label { Text(session.skippedCount, format: .number) } icon: { Image(systemName: "forward.fill") }
+                                .foregroundStyle(.indigo)
+                                .accessibilityIdentifier("skipTally")
+                        }
                     }
                     .labelStyle(.tally)
                     .font(.caption.weight(.semibold))
@@ -196,7 +202,12 @@ struct CullView: View {
             throwRequest: $deckThrow,
             onDecide: { decision in
                 session.decide(decision)
-                emit(decision == .keep ? .keep : .trash)
+                let kind: Feedback.Kind = switch decision {
+                case .keep: .keep
+                case .trash: .trash
+                case .skip: .skip
+                }
+                emit(kind)
                 isZoomed = false
             },
             onArmed: { emit(.armed) },
@@ -210,7 +221,7 @@ struct CullView: View {
     }
 
     private func controls(_ session: CullSession, current: CullItem) -> some View {
-        HStack(spacing: 20) {
+        HStack(spacing: 14) {
             // Leading slot: sound toggle for media with audio, otherwise empty to keep the layout centred.
             Group {
                 if current.asset.hasAudio {
@@ -244,6 +255,20 @@ struct CullView: View {
             .tint(.green)
             .buttonBorderShape(.circle)
             .accessibilityIdentifier("keepButton")
+
+            Button {
+                requestThrow(.skip)
+            } label: {
+                Label("保留", systemImage: "forward.fill")
+                    .labelStyle(.iconOnly)
+                    .font(.title3.bold())
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.glass)
+            .tint(.indigo)
+            .buttonBorderShape(.circle)
+            .accessibilityHint(Text("今回はスキップして、次回また表示します"))
+            .accessibilityIdentifier("skipButton")
 
             Button {
                 requestThrow(.trash)
@@ -283,6 +308,7 @@ struct CullView: View {
             total: session.total,
             kept: session.keptCount,
             trashed: session.trashedCount,
+            skipped: session.skippedCount,
             trashCount: store.trash.count,
             onReviewTrash: { showTrash = true },
             onDone: { dismiss() }
