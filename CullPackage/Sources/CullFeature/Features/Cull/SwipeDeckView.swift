@@ -33,6 +33,8 @@ struct SwipeDeckView: View {
     @State private var departing: [Departing] = []
     /// A two-finger pinch is in progress on the top card.
     @State private var isPinching = false
+    /// The top card's video seek bar is being dragged.
+    @State private var isScrubbing = false
 
     /// A card flying off. Its pose is fixed at the moment of the throw and never
     /// reads the live drag, so the next card's drag can't steer it.
@@ -81,6 +83,8 @@ struct SwipeDeckView: View {
             // A new top card (throw, undo, outside library change) never inherits a drag.
             .onChange(of: current.id) { _, id in
                 if drag?.itemID != id { resetDrag() }
+                // The old card's seek bar is gone; it can't report the end of its scrub.
+                isScrubbing = false
             }
             .onChange(of: isTouching) { _, touching in
                 guard !touching else { return }
@@ -139,7 +143,19 @@ struct SwipeDeckView: View {
             isZoomed: isTop ? $isZoomed : .constant(false),
             isMuted: isTop ? isMuted : true,
             onToggleMute: { isMuted.toggle() },
-            onPinchingChange: isTop ? { isPinching = $0 } : nil
+            onPinchingChange: isTop ? { isPinching = $0 } : nil,
+            onScrubbingChange: isTop ? { isScrubbing = $0 } : nil,
+            accessibility: CardAccessibility(
+                label: Text(layer.item.asset.accessibilityKind),
+                value: isTop && isZoomed ? "zoomed" : "fit",
+                identifier: isTop ? "mediaCard" : "mediaCardInactive",
+                actions: [
+                    .init(name: Text("保持")) { throwCard(.keep, size: size) },
+                    .init(name: Text("ゴミ箱に移動")) { throwCard(.trash, size: size) },
+                    .init(name: Text("保留")) { throwCard(.skip, size: size) },
+                    .init(name: Text("情報")) { onInfo() },
+                ]
+            )
         )
         .overlay { Color.black.opacity(0.18 * depth).allowsHitTesting(false) }
         .overlay { decisionTint(offset.width, progress: lean) }
@@ -158,15 +174,8 @@ struct SwipeDeckView: View {
         // the swipe tracks from the first couple of points. Pinches are fenced off below.
         .simultaneousGesture(swipeGesture(for: layer.item.id, size: size), isEnabled: isTop && !isZoomed)
         .accessibilityHidden(!isTop)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(layer.item.asset.accessibilityKind))
-        .accessibilityValue(isZoomed ? "zoomed" : "fit")
-        .accessibilityIdentifier(isTop ? "mediaCard" : "mediaCardInactive")
-        .accessibilityAddTraits(.isImage)
-        .accessibilityAction(named: "保持") { throwCard(.keep, size: size) }
-        .accessibilityAction(named: "ゴミ箱に移動") { throwCard(.trash, size: size) }
-        .accessibilityAction(named: "保留") { throwCard(.skip, size: size) }
-        .accessibilityAction(named: "情報") { onInfo() }
+        // The media is one element (set up in MediaCardView); a video's seek bar is another.
+        .accessibilityElement(children: .contain)
     }
 
     /// 0 at rest, 1 once a card is past the decision threshold.
@@ -246,7 +255,7 @@ struct SwipeDeckView: View {
                 let previous = drag?.itemID == itemID ? drag : nil
                 // A pinch running alongside (or one that zoomed in) takes over: park the card.
                 let next = DeckDrag.next(previous, itemID: itemID, translation: value.translation,
-                                         width: width, fenced: isPinching || isZoomed)
+                                         width: width, fenced: isPinching || isZoomed || isScrubbing)
                 if previous?.axis == nil, next.axis == .vertical {
                     // The few points of sideways travel before the lock settle back quickly.
                     withAnimation(.snappy(duration: 0.15)) { drag = next }
@@ -263,7 +272,7 @@ struct SwipeDeckView: View {
             }
             .onEnded { value in
                 guard itemID == current.id, let ended = drag, ended.itemID == itemID else { return }
-                guard !isZoomed, !ended.fenced, !isPinching else { return snapBack() }
+                guard !isZoomed, !ended.fenced, !isPinching, !isScrubbing else { return snapBack() }
                 let outcome = SwipeRules.outcome(
                     translation: value.translation,
                     predicted: value.predictedEndTranslation,

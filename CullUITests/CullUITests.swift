@@ -194,6 +194,33 @@ final class CullUITests: XCTestCase {
         waitForExpectations(timeout: 5)
     }
 
+    /// A playing video shows elapsed / total time and a seek bar. Dragging along the bar
+    /// sideways scrubs the video and never keeps / trashes the card or moves it.
+    @MainActor
+    func testVideoSeekBarScrubsWithoutSwiping() throws {
+        let (card, progress) = try startCulling(attribute: "video")
+        let initial = remaining(progress)
+        let bar = app.descendants(matching: .any)["videoSeekBar"]
+        XCTAssertTrue(bar.waitForExistence(timeout: 10), "seed a video with Scripts/seed_simulator.sh")
+        let rest = card.frame
+
+        // Right (trash direction) then left (keep direction), each far past the swipe threshold.
+        let left = bar.coordinate(withNormalizedOffset: CGVector(dx: 0.12, dy: 0.5))
+        let right = bar.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5))
+        left.press(forDuration: 0.15, thenDragTo: right, withVelocity: .fast, thenHoldForDuration: 0.1)
+        XCTAssertNotEqual(bar.value as? String ?? "", "", "shows the time")
+        right.press(forDuration: 0.15, thenDragTo: left, withVelocity: .fast, thenHoldForDuration: 0.1)
+
+        Thread.sleep(forTimeInterval: 0.8)
+        XCTAssertEqual(remaining(progress), initial, "scrubbing must not keep or trash")
+        XCTAssertEqual(card.frame.midX, rest.midX, accuracy: 4, "card stays put")
+        XCTAssertEqual(app.buttons["trashButton"].value as? String, "0")
+
+        // The card still swipes normally afterwards.
+        card.swipeLeft()
+        waitFor(progress, value: "\(initial - 1)")
+    }
+
     @MainActor
     func testSwipeUpOpensInfo() throws {
         let (card, _) = try startCulling()

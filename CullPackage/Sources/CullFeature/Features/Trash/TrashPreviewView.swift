@@ -21,13 +21,14 @@ struct TrashPreviewView: View {
                 isActive: true,
                 isZoomed: $isZoomed,
                 isMuted: isMuted,
-                onToggleMute: { isMuted.toggle() }
+                onToggleMute: { isMuted.toggle() },
+                accessibility: CardAccessibility(
+                    label: Text(asset.accessibilityKind),
+                    value: isZoomed ? "zoomed" : "fit",
+                    identifier: "trashPreview"
+                )
             )
             .padding(.horizontal, 8)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Text(asset.accessibilityKind))
-            .accessibilityAddTraits(.isImage)
-            .accessibilityIdentifier("trashPreview")
             .audioSessionAudible(!isMuted && asset.hasAudio)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
