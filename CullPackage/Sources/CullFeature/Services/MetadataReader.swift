@@ -17,6 +17,8 @@ struct AssetInfo: Sendable, Equatable {
     var fileSize: Int64?
     var coordinate: CLLocationCoordinate2D?
     var isFavorite: Bool
+    /// The original is only in iCloud and downloads are off: no EXIF / exact size.
+    var isOriginalOffDevice = false
 
     // From EXIF/TIFF (photos only)
     var cameraMake: String?
@@ -43,6 +45,7 @@ struct AssetInfo: Sendable, Equatable {
     static func == (lhs: AssetInfo, rhs: AssetInfo) -> Bool {
         lhs.creationDate == rhs.creationDate && lhs.fileName == rhs.fileName
             && lhs.fileSize == rhs.fileSize && lhs.cameraModel == rhs.cameraModel
+            && lhs.isOriginalOffDevice == rhs.isOriginalOffDevice
     }
 }
 
@@ -53,14 +56,18 @@ enum MetadataReader {
         var info = basicInfo(for: asset)
         switch asset.mediaType {
         case .video:
-            if let avAsset = await loader.videoAsset(for: asset), let urlAsset = avAsset as? AVURLAsset {
+            let video = await loader.video(for: asset)
+            info.isOriginalOffDevice = video.isCloudOnly
+            if let urlAsset = video.asset as? AVURLAsset {
                 info.fileSize = await fileSize(at: urlAsset.url)
                 if let duration = try? await urlAsset.load(.duration) {
                     info.duration = duration.seconds
                 }
             }
         default:
-            if let data = await loader.imageData(for: asset) {
+            let data = await loader.imageData(for: asset)
+            info.isOriginalOffDevice = data == nil && !ImageLoader.allowsICloudDownload
+            if let data {
                 let exif = await parseImageProperties(data)
                 info.fileSize = Int64(data.count)
                 info.cameraMake = exif.make

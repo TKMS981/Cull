@@ -18,6 +18,9 @@ struct VideoCardView: View {
                 PlayerLayerView(player: player, isReady: $playback.isReady)
                     .opacity(playback.isReady ? 1 : 0)
             }
+            if isActive, playback.isCloudOnly {
+                CloudOnlyNote(text: "このビデオは iCloud にあるため再生できません")
+            }
         }
         // The player only exists while this is the top card and the app is in front:
         // in the background it's released (position kept) instead of left paused.

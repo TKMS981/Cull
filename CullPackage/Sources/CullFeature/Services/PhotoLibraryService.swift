@@ -87,10 +87,6 @@ final class PhotoLibraryService {
         return result
     }
 
-    func fetchAssets(matching filter: CullFilter) -> PHFetchResult<PHAsset> {
-        filter.fetchAssets()
-    }
-
     /// Matches for `filter` minus the given IDs (kept/trashed), off the main actor.
     /// The library case walks only the excluded IDs, so it never enumerates the whole
     /// library; an album still has to be walked.

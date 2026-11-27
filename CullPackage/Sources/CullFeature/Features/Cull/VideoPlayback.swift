@@ -26,13 +26,18 @@ final class VideoPlayback {
     @ObservationIgnored private var isSeeking = false
     @ObservationIgnored private var pendingSeek: Double?
 
+    /// The video isn't on this device and iCloud downloads are off.
+    private(set) var isCloudOnly = false
+
     /// Where to pick up after `suspend()` (the app went to the background).
     @ObservationIgnored private var resumeAt: Double?
 
     func start(asset: PHAsset) async {
         guard player == nil else { return }
         duration = asset.duration
-        guard let avAsset = await ImageLoader.shared.videoAsset(for: asset), !Task.isCancelled, player == nil else { return }
+        let result = await ImageLoader.shared.video(for: asset)
+        isCloudOnly = result.isCloudOnly
+        guard let avAsset = result.asset, !Task.isCancelled, player == nil else { return }
         let item = AVPlayerItem(asset: avAsset)
         let queuePlayer = AVQueuePlayer()
         queuePlayer.isMuted = isMuted

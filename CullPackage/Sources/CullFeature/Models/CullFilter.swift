@@ -138,8 +138,6 @@ nonisolated public struct CullFilter: Hashable, Sendable {
         return PHAsset.fetchAssets(with: options)
     }
 
-    public var fetchOptions: PHFetchOptions { fetchOptions(sort: .oldest) }
-
     public func fetchOptions(sort: CullSort) -> PHFetchOptions {
         let options = PHFetchOptions()
         options.predicate = predicate

@@ -37,6 +37,7 @@ SwiftUI app for culling photos, videos and Live Photos one at a time by swiping.
   - Runs `@concurrent` at `.utility` priority.
   - At most `ResourceGovernor.maxConcurrency` (4) at a time, half in Low Power Mode, paused while `thermalState` is `.serious` or above. The UI says so (`PaceNote`).
   - Downsample before decoding (similar: 300 px thumbnails, never full resolution), and wrap per-item ObjC/PhotoKit work in `autoreleasepool`.
+- Records of assets deleted elsewhere are pruned by `LibraryReconciler` (kept, trash, similar groups, caches), but **only with full access**: with `.limited`, missing from PhotoKit ≠ deleted.
 - Scans are cancelled when their screen disappears or the app leaves the foreground. Results resume from the caches.
 - In the background, the culling screen drops `PHCachingImageManager` caching and video cards release their `AVPlayer` (position kept). A memory warning drops the cache too.
 

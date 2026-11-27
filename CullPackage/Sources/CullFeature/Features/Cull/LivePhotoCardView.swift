@@ -22,7 +22,7 @@ struct LivePhotoCardView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                AssetImageView(asset: asset, highQuality: highQuality)
+                AssetImageView(asset: asset, highQuality: highQuality, showsAvailability: isActive)
                 if let livePhoto, isActive {
                     LivePhotoRepresentable(livePhoto: livePhoto, isMuted: isMuted, playsFully: isHolding)
                         .accessibilityHidden(true)

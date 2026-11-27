@@ -162,7 +162,7 @@ struct SimilarView: View {
         }
     }
 
-    private func progressSection(_ progress: SimilarScanModel.Progress) -> some View {
+    private func progressSection(_ progress: ScanProgress) -> some View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -260,28 +260,6 @@ private struct SimilarGroupRow: View {
         .accessibilityElement(children: .combine)
         .task(id: group.assetIDs) {
             assets = library.assets(withIDs: Array(group.assetIDs.prefix(Self.shown)))
-        }
-    }
-}
-
-/// Tells the user why a scan runs slower or has stopped.
-struct PaceNote: View {
-    let pace: WorkPace
-
-    var body: some View {
-        switch pace {
-        case .normal:
-            EmptyView()
-        case .reduced:
-            Label("省電力のため、ゆっくり解析しています", systemImage: "leaf")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("paceReduced")
-        case .paused:
-            Label("端末が熱くなっているため一時停止中です。冷えると再開します", systemImage: "thermometer.high")
-                .font(.caption)
-                .foregroundStyle(.orange)
-                .accessibilityIdentifier("pacePaused")
         }
     }
 }

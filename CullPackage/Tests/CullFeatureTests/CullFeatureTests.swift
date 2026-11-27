@@ -753,3 +753,41 @@ struct DiskCacheTests {
         #expect(try PropertyListDecoder().decode(ImageSignature.self, from: data) == signature)
     }
 }
+
+@Suite("Library reconciliation")
+struct LibraryReconcilerTests {
+    @Test func onlyFullAccessMayPrune() {
+        #expect(LibraryReconciler.canPrune(.authorized))
+        #expect(!LibraryReconciler.canPrune(.limited), "limited access hides assets, it doesn't delete them")
+        #expect(!LibraryReconciler.canPrune(.denied))
+        #expect(!LibraryReconciler.canPrune(.notDetermined))
+    }
+
+    @Test func missingIsWhatPhotoKitNoLongerReturns() {
+        #expect(LibraryReconciler.missing(["a", "b", "c"], existing: ["a", "c", "z"]) == ["b"])
+        #expect(LibraryReconciler.missing([], existing: ["a"]).isEmpty)
+    }
+
+    @Test func deletedAssetsLeaveKeptHistoryAndTrash() throws {
+        let store = DecisionStore(container: try DecisionStore.makeContainer(inMemory: true))
+        store.record(.keep, for: ["k1", "k2"])
+        store.record(.trash, for: ["t1", "t2"])
+        let decided = store.keptIDs.union(store.trashedIDs)
+        let missing = LibraryReconciler.missing(decided, existing: ["k1", "t2"])
+        store.clear(ids: missing)
+        #expect(store.keptIDs == ["k1"])
+        #expect(store.trashedIDs == ["t2"])
+        #expect(store.trash.map(\.id) == ["t2"])
+    }
+
+    @Test func cachePrunerKeepsOnlyLiveKeys() throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: "Pruner-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let cache = DiskCache<Int>(fileName: "c.plist", capacity: 10, directory: directory)
+        for id in ["a", "b", "c"] { cache.store(1, for: id, modified: nil) }
+        let pruner = cache.keyedPruner
+        #expect(pruner.keys() == ["a", "b", "c"])
+        pruner.retain(["b"])
+        #expect(DiskCache<Int>(fileName: "c.plist", capacity: 10, directory: directory).allKeys == ["b"], "persisted")
+    }
+}

@@ -12,6 +12,9 @@ struct VideoSeekBar: View {
 
     /// Resets even when the system cancels the drag, so scrubbing can't get stuck on.
     @GestureState private var isTouching = false
+    /// A finger anywhere on the bar (time labels included): the deck must not take
+    /// the drag as a swipe even when it doesn't start on the track.
+    @GestureState private var isTouchingBar = false
 
     private var fraction: Double {
         guard playback.duration > 0 else { return 0 }
@@ -27,9 +30,14 @@ struct VideoSeekBar: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
         .glassEffect(.regular, in: .capsule)
+        .contentShape(.capsule)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0, coordinateSpace: .local)
+                .updating($isTouchingBar) { _, touching, _ in touching = true }
+        )
         .padding(.horizontal, 12)
         .padding(.bottom, 12)
-        .onChange(of: playback.isScrubbing) { _, scrubbing in onScrubbingChange(scrubbing) }
+        .onChange(of: playback.isScrubbing || isTouchingBar) { _, fenced in onScrubbingChange(fenced) }
         .onChange(of: isTouching) { _, touching in
             if !touching { playback.endScrubbing() }
         }

@@ -315,6 +315,17 @@
       },
       "extractionState" : "manual"
     },
+    "このビデオは iCloud にあるため再生できません" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This video is in iCloud and can’t be played"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "この内容で整理" : {
       "localizations" : {
         "en" : {
@@ -1053,6 +1064,28 @@
         }
       }
     },
+    "元の写真が iCloud にあるため、低解像度で表示しています" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original is in iCloud, so this is shown at low resolution"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "元データが iCloud にあるため、カメラ情報とファイルサイズは表示できません。設定の「iCloud から元の写真をダウンロード」をオンにすると表示できます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original is in iCloud, so camera details and file size aren’t available. Turn on “Download Originals from iCloud” in Settings to see them."
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "先月" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1296,6 +1329,17 @@
       },
       "extractionState" : "manual"
     },
+    "容量を確認" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check usage"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "容量を空ける" : {
       "localizations" : {
         "en" : {
@@ -1318,6 +1362,17 @@
       },
       "extractionState" : "manual"
     },
+    "容量分析" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Storage"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "対象" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1335,6 +1390,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Attributes"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "属性を選ばない場合は写真・ビデオ・Live Photos すべてが対象です。複数選ぶといずれかに当てはまるものが対象になります。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With no type selected, all photos, videos and Live Photos are included. With several, anything matching one of them is included."
           }
         }
       },
@@ -1416,6 +1482,17 @@
           }
         }
       }
+    },
+    "整理する写真" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What to Sort"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "整理する写真はありません" : {
       "extractionState" : "stale",
@@ -1802,6 +1879,17 @@
         }
       }
     },
+    "設定の「iCloud から元の写真をダウンロード」をオンにすると表示できます" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn on “Download Originals from iCloud” in Settings to see it"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "設定を開く" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1922,6 +2010,17 @@
           }
         }
       }
+    },
+    "重複を探す" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find duplicates"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "長さ" : {
       "extractionState" : "stale",

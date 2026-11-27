@@ -56,11 +56,15 @@ public struct CullRootView: View {
                         }
                 }
                 .task(id: library.status) {
-                    pruneTrash()
+                    await reconcile()
                     for await _ in library.changes() {
-                        pruneTrash()
                         storage.libraryDidChange()
+                        await reconcile()
                     }
+                }
+                .task(id: library.status) {
+                    guard LibraryReconciler.canPrune(library.status) else { return }
+                    await Task(priority: .utility) { await LibraryReconciler.pruneCaches() }.value
                 }
             case .notDetermined:
                 ContentUnavailableView {
@@ -98,12 +102,19 @@ public struct CullRootView: View {
         }
     }
 
-    /// Drops trash entries whose assets were deleted elsewhere (or after our own delete).
-    private func pruneTrash() {
-        let ids = store.trash.map(\.id)
+    /// Drops records of assets deleted elsewhere (e.g. in Photos): kept history,
+    /// Cull's trash and similar-photo groups. Skipped with limited access, where
+    /// PhotoKit hides unselected assets rather than reporting them deleted.
+    private func reconcile() async {
+        guard LibraryReconciler.canPrune(library.status) else { return }
+        let decided = store.keptIDs.union(store.trashedIDs)
+        let grouped = Set(similar.groups.flatMap(\.assetIDs))
+        let ids = decided.union(grouped)
         guard !ids.isEmpty else { return }
-        let existing = library.assets(withIDs: ids)
-        let missing = ids.filter { existing[$0] == nil }
-        if !missing.isEmpty { store.clear(ids: missing) }
+        let existing = await LibraryReconciler.existing(among: ids)
+        let missing = LibraryReconciler.missing(ids, existing: existing)
+        guard !missing.isEmpty else { return }
+        store.clear(ids: missing.intersection(decided))
+        similar.prune { !missing.contains($0) }
     }
 }

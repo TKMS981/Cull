@@ -197,14 +197,8 @@ extension CGImagePropertyOrientation {
 /// opening a group and coming back.
 @Observable
 final class SimilarScanModel {
-    struct Progress: Equatable {
-        var done: Int
-        var total: Int
-        var fraction: Double { total > 0 ? Double(done) / Double(total) : 0 }
-    }
-
     private(set) var groups: [SimilarGroup] = []
-    private(set) var progress: Progress?
+    private(set) var progress: ScanProgress?
     /// A scan has finished (so an empty `groups` means "none found").
     private(set) var hasResults = false
 
@@ -223,11 +217,11 @@ final class SimilarScanModel {
         cancel()
         let generation = UUID()
         self.generation = generation
-        progress = Progress(done: 0, total: 0)
+        progress = ScanProgress(done: 0, total: 0)
         let update: @Sendable (Int, Int) -> Void = { [weak self] done, total in
             Task { @MainActor in
                 guard let self, self.generation == generation, let current = self.progress else { return }
-                self.progress = Progress(done: max(done, current.done), total: total)
+                self.progress = ScanProgress(done: max(done, current.done), total: total)
             }
         }
         lastRequest = Request(filter: filter, excluded: excluded, level: level)

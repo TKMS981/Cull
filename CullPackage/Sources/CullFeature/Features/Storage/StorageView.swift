@@ -69,7 +69,7 @@ struct StorageView: View {
 
     // MARK: Sections
 
-    private func progressSection(_ progress: StorageModel.Progress) -> some View {
+    private func progressSection(_ progress: ScanProgress) -> some View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -158,6 +158,7 @@ struct StorageView: View {
                         Image(systemName: summary.category.systemImage)
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.white)
+                            .dynamicTypeSize(...DynamicTypeSize.large)
                             .frame(width: 32, height: 32)
                             .background(summary.category.color.gradient, in: .rect(cornerRadius: 8))
                             .accessibilityHidden(true)
@@ -177,6 +178,8 @@ struct StorageView: View {
                                 .monospacedDigit()
                                 .foregroundStyle(.secondary)
                         }
+                        // Sizes never wrap ("11.4 / MB"); the name wraps instead.
+                        .fixedSize(horizontal: true, vertical: false)
                         Image(systemName: "chevron.forward")
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(.tertiary)
@@ -241,7 +244,7 @@ struct StorageView: View {
             .frame(width: 48, height: 48)
             .clipShape(.rect(cornerRadius: 8))
             VStack(alignment: .leading, spacing: 2) {
-                Label { Text(item.category.title) } icon: { Image(systemName: item.category.systemImage) }
+                Text(item.category.title)
                     .font(.subheadline)
                 if let asset = assets[item.id], let date = asset.creationDate {
                     Text(date, format: .dateTime.year().month().day())
@@ -254,6 +257,7 @@ struct StorageView: View {
                 Text(bytes, format: .byteCount(style: .file))
                     .font(.subheadline.weight(.semibold))
                     .monospacedDigit()
+                    .fixedSize(horizontal: true, vertical: false)
             }
         }
         .contentShape(.rect)

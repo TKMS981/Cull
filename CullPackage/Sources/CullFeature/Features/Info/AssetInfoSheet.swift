@@ -80,7 +80,7 @@ struct AssetInfoSheet: View {
     }
 
     private func fileSection(_ info: AssetInfo) -> some View {
-        Section("ファイル") {
+        Section {
             LabeledContent("解像度") {
                 let megapixels = info.kind == .video ? "" : String(format: "  (%.1f MP)", info.megapixels)
                 Text(verbatim: "\(info.pixelWidth) × \(info.pixelHeight)\(megapixels)")
@@ -97,6 +97,13 @@ struct AssetInfoSheet: View {
             }
             if let uti = info.uniformType, let type = UTType(uti) {
                 LabeledContent("フォーマット", value: type.preferredFilenameExtension?.uppercased() ?? uti)
+            }
+        } header: {
+            Text("ファイル")
+        } footer: {
+            if info.isOriginalOffDevice {
+                Label("元データが iCloud にあるため、カメラ情報とファイルサイズは表示できません。設定の「iCloud から元の写真をダウンロード」をオンにすると表示できます。", systemImage: "icloud.slash")
+                    .accessibilityIdentifier("infoOffDeviceNote")
             }
         }
     }

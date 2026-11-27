@@ -28,6 +28,8 @@ struct FilterSetupView: View {
 
     @Environment(PhotoLibraryService.self) private var library
     @Environment(DecisionStore.self) private var store
+    @Environment(StorageModel.self) private var storage
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @AppStorage("includeKept") private var includeKept = false
     @AppStorage(ImageLoader.iCloudDownloadKey) private var allowsICloudDownload = true
@@ -53,12 +55,9 @@ struct FilterSetupView: View {
     var body: some View {
         Form {
             if library.isLimited { limitedSection }
-            quickStartSection
             toolsSection
-            albumSection
-            dateSection
-            attributeSection
-            sortSection
+            quickStartSection
+            conditionsSection
             settingsSection
         }
         .onScrollGeometryChange(for: Bool.self) { geometry in
@@ -205,18 +204,40 @@ struct FilterSetupView: View {
         }
     }
 
-    /// Space freed so far, and the storage / similar-photo tools.
+    // MARK: Tools
+
+    /// Space freed so far, then one tile per helper screen.
     private var toolsSection: some View {
         Section {
             if store.deletedCount > 0 {
                 savingsRow
             }
-            toolRow("ストレージを分析", systemImage: "chart.bar.xaxis", tint: .blue, identifier: "storageButton") {
-                path.append(.storage)
+            // Three tiles across; one full-width row each at accessibility text sizes.
+            LazyVGrid(columns: dynamicTypeSize.isAccessibilitySize ? [GridItem(.flexible())]
+                                                                   : [GridItem(.adaptive(minimum: 104), spacing: 10)],
+                      spacing: 10) {
+                toolTile("容量分析", systemImage: "chart.bar.xaxis", tint: .blue, identifier: "storageButton") {
+                    if let total = storage.report?.totalBytes {
+                        Text(total, format: .byteCount(style: .file))
+                    } else {
+                        Text("容量を確認")
+                    }
+                } action: {
+                    path.append(.storage)
+                }
+                toolTile("似た写真", systemImage: "square.on.square", tint: .purple, identifier: "similarButton") {
+                    Text("重複を探す")
+                } action: {
+                    path.append(.similar)
+                }
+                toolTile("保持済み", systemImage: "checkmark.circle", tint: .green, identifier: "keptListButton") {
+                    Text("\(store.keptIDs.count) 件")
+                } action: {
+                    path.append(.kept)
+                }
             }
-            toolRow("似た写真を探す", systemImage: "square.on.square", tint: .purple, identifier: "similarButton") {
-                path.append(.similar)
-            }
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
         } header: {
             Text("容量を空ける")
         }
@@ -244,32 +265,52 @@ struct FilterSetupView: View {
         .accessibilityIdentifier("savingsSummary")
     }
 
-    private func toolRow(_ title: LocalizedStringKey, systemImage: String, tint: Color, identifier: String,
-                         action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
+    private func toolTile(
+        _ title: LocalizedStringKey, systemImage: String, tint: Color, identifier: String,
+        @ViewBuilder detail: () -> some View, action: @escaping () -> Void
+    ) -> some View {
+        let wide = dynamicTypeSize.isAccessibilitySize
+        let layout = wide ? AnyLayout(HStackLayout(spacing: 12)) : AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+        return Button(action: action) {
+            layout {
                 Image(systemName: systemImage)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.white)
-                    .frame(width: 30, height: 30)
-                    .background(tint.gradient, in: .rect(cornerRadius: 7))
+                    .dynamicTypeSize(...DynamicTypeSize.large)   // the badge has a fixed size
+                    .frame(width: 32, height: 32)
+                    .background(tint.gradient, in: .rect(cornerRadius: 8))
                     .accessibilityHidden(true)
-                Text(title)
-                Spacer()
-                Image(systemName: "chevron.forward")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                    detail()
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .lineLimit(wide ? 2 : 1)
+                        .minimumScaleFactor(0.8)
+                }
+                if wide { Spacer(minLength: 0) }
             }
-            .contentShape(.rect)
+            .frame(maxWidth: .infinity, minHeight: wide ? nil : 96, alignment: .topLeading)
+            .padding(12)
+            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
+            .contentShape(.rect(cornerRadius: 16))
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier(identifier)
     }
 
-    private var albumSection: some View {
-        Section("アルバム") {
-            Picker("対象", selection: $albumID) {
+    // MARK: Conditions
+
+    /// Album, dates, attributes and order: everything that decides what gets culled.
+    private var conditionsSection: some View {
+        Section {
+            Picker("アルバム", selection: $albumID) {
                 Text("すべての写真").tag(String?.none)
                 let smart = library.albums.filter(\.isSmartAlbum)
                 if !smart.isEmpty {
@@ -289,65 +330,62 @@ struct FilterSetupView: View {
                 }
             }
             .pickerStyle(.navigationLink)
-        }
-    }
-
-    private var dateSection: some View {
-        Section("撮影期間") {
             Toggle("期間で絞り込む", isOn: $useDateRange.animation())
                 .accessibilityIdentifier("dateRangeToggle")
             if useDateRange {
                 DatePicker("開始日", selection: $startDate, in: ...endDate, displayedComponents: .date)
                 DatePicker("終了日", selection: $endDate, in: startDate..., displayedComponents: .date)
             }
-        }
-    }
-
-    private var attributeSection: some View {
-        Section {
-            ForEach(MediaAttribute.allCases) { attribute in
-                let isOn = attributes.contains(attribute)
-                Button {
-                    if isOn { attributes.remove(attribute) } else { attributes.insert(attribute) }
-                } label: {
-                    HStack {
-                        Label { Text(attribute.title) } icon: { Image(systemName: attribute.systemImage) }
-                        Spacer()
-                        if isOn {
-                            Image(systemName: "checkmark").foregroundStyle(.tint)
-                        }
+            VStack(alignment: .leading, spacing: 10) {
+                Text("属性")
+                FlowLayout(spacing: 8, lineSpacing: 8) {
+                    ForEach(MediaAttribute.allCases) { attribute in
+                        attributeChip(attribute)
                     }
-                    .contentShape(.rect)
                 }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(isOn ? .isSelected : [])
-                .accessibilityIdentifier("attribute.\(attribute.rawValue)")
             }
-        } header: {
-            Text("属性")
-        } footer: {
-            Text("選択しない場合は写真・ビデオ・Live Photos すべてが対象です。複数選択するといずれかに当てはまるものが対象になります。")
-        }
-    }
-
-    private var sortSection: some View {
-        Section {
+            .padding(.vertical, 4)
             Picker(selection: $sort) {
                 ForEach(CullSort.allCases) { sort in
                     Label { Text(sort.title) } icon: { Image(systemName: sort.systemImage) }
                         .tag(sort)
                 }
             } label: {
-                Label("並び順", systemImage: "arrow.up.arrow.down")
+                Text("並び順")
             }
             .pickerStyle(.menu)
             .accessibilityIdentifier("sortPicker")
+        } header: {
+            Text("整理する写真")
         } footer: {
-            if sort == .largest {
-                Text("開始時にファイルサイズを計算します。写真が多いと少し時間がかかります。")
+            VStack(alignment: .leading, spacing: 4) {
+                Text("属性を選ばない場合は写真・ビデオ・Live Photos すべてが対象です。複数選ぶといずれかに当てはまるものが対象になります。")
+                if sort == .largest {
+                    Text("開始時にファイルサイズを計算します。写真が多いと少し時間がかかります。")
+                }
             }
         }
     }
+
+    private func attributeChip(_ attribute: MediaAttribute) -> some View {
+        let isOn = attributes.contains(attribute)
+        return Button {
+            if isOn { attributes.remove(attribute) } else { attributes.insert(attribute) }
+        } label: {
+            Label { Text(attribute.title) } icon: { Image(systemName: isOn ? "checkmark" : attribute.systemImage) }
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(isOn ? Color.white : Color.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(isOn ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(Color(.tertiarySystemFill)), in: .capsule)
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+        .accessibilityIdentifier("attribute.\(attribute.rawValue)")
+    }
+
+    // MARK: Settings
 
     private var settingsSection: some View {
         Section {
@@ -355,33 +393,13 @@ struct FilterSetupView: View {
                 .accessibilityIdentifier("includeKeptToggle")
             Toggle("iCloud から元の写真をダウンロード", isOn: $allowsICloudDownload)
                 .accessibilityIdentifier("iCloudDownloadToggle")
-            Button {
-                path.append(.kept)
-            } label: {
-                HStack {
-                    Label("保持済みの写真を見る", systemImage: "checkmark.circle")
-                    Spacer()
-                    Text(store.keptIDs.count, format: .number)
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                    Image(systemName: "chevron.forward")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.tertiary)
-                }
-                .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("keptListButton")
             Button("整理済み履歴をリセット…", role: .destructive) { showReset = true }
                 .disabled(store.keptIDs.isEmpty)
                 .accessibilityIdentifier("resetKeptButton")
         } header: {
             Text("設定")
         } footer: {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("保持済み: \(store.keptIDs.count) 件")
-                Text("iCloud をオフにすると、端末にない写真は低解像度のまま表示します。解析（容量・似た写真）は常に端末内のデータだけで行います。")
-            }
+            Text("iCloud をオフにすると、端末にない写真は低解像度のまま表示します。解析（容量・似た写真）は常に端末内のデータだけで行います。")
         }
     }
 

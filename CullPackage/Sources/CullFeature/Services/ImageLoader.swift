@@ -35,7 +35,14 @@ final class ImageLoader: @unchecked Sendable {
 
     /// Opportunistic for the card (fast degraded image, then full), high quality when zoomed.
     /// The stream finishes once the final image arrives.
-    nonisolated func images(for asset: PHAsset, targetSize: CGSize, highQuality: Bool = false, contentMode: PHImageContentMode = .aspectFit) -> AsyncStream<UIImage> {
+    /// One delivered image. `isCloudOnly`: the original is only in iCloud and
+    /// downloading is off, so this is as sharp as it gets.
+    nonisolated struct Delivery: @unchecked Sendable {
+        let image: UIImage
+        let isCloudOnly: Bool
+    }
+
+    nonisolated func images(for asset: PHAsset, targetSize: CGSize, highQuality: Bool = false, contentMode: PHImageContentMode = .aspectFit) -> AsyncStream<Delivery> {
         AsyncStream { continuation in
             let options = highQuality ? Self.zoomOptions : Self.cardOptions
             let requestID = manager.requestImage(for: asset, targetSize: targetSize, contentMode: contentMode, options: options) { image, info in
@@ -43,7 +50,8 @@ final class ImageLoader: @unchecked Sendable {
                 let finished = !degraded
                     || (info?[PHImageCancelledKey] as? Bool) == true
                     || info?[PHImageErrorKey] != nil
-                if let image { continuation.yield(image) }
+                let inCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                if let image { continuation.yield(Delivery(image: image, isCloudOnly: inCloud && !options.isNetworkAccessAllowed)) }
                 if finished { continuation.finish() }
             }
             let manager = manager
@@ -66,22 +74,26 @@ final class ImageLoader: @unchecked Sendable {
         }
     }
 
-    nonisolated func videoAsset(for asset: PHAsset) async -> AVAsset? {
-        let options = PHVideoRequestOptions()
-        options.deliveryMode = .automatic
-        options.isNetworkAccessAllowed = Self.allowsICloudDownload
-        let box = await withCheckedContinuation { (continuation: CheckedContinuation<AVAssetBox, Never>) in
-            manager.requestAVAsset(forVideo: asset, options: options) { avAsset, _, _ in
-                continuation.resume(returning: AVAssetBox(asset: avAsset))
-            }
-        }
-        return box.asset
+    /// The playable video, or why there isn't one. PhotoKit creates the `AVAsset` on
+    /// its own queue and hands it over without keeping a reference, so transferring
+    /// it to the caller is safe.
+    nonisolated struct VideoResult: @unchecked Sendable {
+        let asset: AVAsset?
+        /// Not on this device, and iCloud downloads are off.
+        let isCloudOnly: Bool
     }
 
-    /// PhotoKit creates the `AVAsset` on its own queue and hands it over without
-    /// keeping a reference, so transferring it to the caller is safe.
-    nonisolated private struct AVAssetBox: @unchecked Sendable {
-        let asset: AVAsset?
+    nonisolated func video(for asset: PHAsset) async -> VideoResult {
+        let options = PHVideoRequestOptions()
+        options.deliveryMode = .automatic
+        let allowsNetwork = Self.allowsICloudDownload
+        options.isNetworkAccessAllowed = allowsNetwork
+        return await withCheckedContinuation { (continuation: CheckedContinuation<VideoResult, Never>) in
+            manager.requestAVAsset(forVideo: asset, options: options) { avAsset, _, info in
+                let inCloud = (info?[PHImageResultIsInCloudKey] as? Bool) == true
+                continuation.resume(returning: VideoResult(asset: avAsset, isCloudOnly: avAsset == nil && inCloud && !allowsNetwork))
+            }
+        }
     }
 
     /// Original image bytes, used for EXIF parsing and file size.

@@ -32,15 +32,9 @@ enum StorageAnalyzer {
 /// still running) survive leaving the screen and coming back.
 @Observable
 final class StorageModel {
-    struct Progress: Equatable {
-        var done: Int
-        var total: Int
-        var fraction: Double { total > 0 ? Double(done) / Double(total) : 0 }
-    }
-
     private(set) var report: StorageReport?
     /// Non-nil while a scan runs.
-    private(set) var progress: Progress?
+    private(set) var progress: ScanProgress?
     /// The library changed since `report` was made.
     private(set) var isStale = false
 
@@ -53,12 +47,12 @@ final class StorageModel {
         guard task == nil else { return }
         let generation = UUID()
         self.generation = generation
-        progress = Progress(done: 0, total: 0)
+        progress = ScanProgress(done: 0, total: 0)
         let update: @Sendable (Int, Int) -> Void = { [weak self] done, total in
             Task { @MainActor in
                 guard let self, self.generation == generation, let current = self.progress else { return }
                 // Workers report out of order; never step backwards.
-                self.progress = Progress(done: max(done, current.done), total: total)
+                self.progress = ScanProgress(done: max(done, current.done), total: total)
             }
         }
         task = Task(priority: .utility) {

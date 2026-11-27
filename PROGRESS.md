@@ -129,9 +129,32 @@ _Last updated: 2026-11-27_
   - Culling screen: background → stop `PHCachingImageManager` caching, video cards release `AVPlayer` (position restored on return); memory warning → drop the cache and re-warm the next few cards.
 - Still uses the non-public `fileSize` KVC key for sizes. It's guarded; when it's missing, sizes show as unknown and nothing is estimated. Decide before App Store submission.
 
+## Polish pass (2026-11-27)
+- **Setup screen** reorganised so it's shorter, with the main action clear:
+  - "容量を空ける" tiles (容量分析 with the last total, 似た写真, 保持済み with its count) sit right under the wordmark.
+  - Then Quick Start.
+  - Then one "整理する写真" section: album, date range, attributes as wrapping chips (`FlowLayout`, was 7 rows), and sort order.
+  - Then settings.
+  - At accessibility text sizes the tiles become full-width rows.
+- **Checked in Japanese + dark mode + AX-L Dynamic Type**: setup, culling, storage, info. Fixed:
+  - The culling control bar overflowed the screen edges at every size (the glass style pads outside a fixed frame, plus 6 gaps and spacer minimums). Spacing and spacers are tighter now, the side buttons are sized inside their label, and the bar's text size is capped at xxLarge (VoiceOver still reads each label).
+  - Storage sizes wrapped as "11.4 / MB", and largest-file labels didn't line up.
+  - Icon badges overflowed their 32 pt frames at AX sizes.
+- **Seek bar**: a drag that started on the bar's time labels (outside the track) wasn't fenced off and could keep or trash the card. The tighter control bar exposed this in the UI test. Any touch on the bar now blocks swiping.
+- **iCloud downloads off**:
+  - A photo card whose original is only in iCloud says it's shown at low resolution.
+  - A video that can't be played says so.
+  - The info sheet explains why camera details and size are missing.
+  - All three point to the setting. Detected from PhotoKit's `PHImageResultIsInCloudKey`.
+- **Assets deleted elsewhere**: `LibraryReconciler` drops them from kept history, Cull's trash and similar groups, on launch and on every library change. Caches (sizes, analyses) are pruned once per launch at `.utility`.
+  - Only with **full access**: with limited access PhotoKit hides unselected assets, so the old trash pruning would have wrongly cleared them. Fixed.
+- Cleanup:
+  - Removed unused `upNext`, `videoAsset(for:)`, `CullFilter.fetchOptions`, `PhotoLibraryService.fetchAssets(matching:)`.
+  - One `ScanProgress` type shared by both scans; `PaceNote` moved to `Features/Shared`.
+
 ## Verified
 - **Build**: `build_sim` / `build_run_sim` succeed with no warnings (Xcode 27.2, iPhone 18 Pro, iOS 27.2).
-- **Tests**: `test_sim` passes 90/90 (71 Swift Testing + 19 XCUITest) after the privacy/efficiency pass, which added governor, disk-cache and signature round-trip unit tests and a UI test for the opt-in map. Phase B was 83 tests (65 + 18).
+- **Tests**: `test_sim` passes 94/94 (75 Swift Testing + 19 XCUITest) after the polish pass, which added reconciler tests: limited access never prunes, deleted IDs leave kept/trash, cache pruning persists. Before that, 90/90 after the privacy/efficiency pass, which added governor, disk-cache and signature round-trip unit tests and a UI test for the opt-in map. Phase B was 83 tests (65 + 18).
   - Phase B added: storage report (one category per asset, totals, ranking, 10k under 1 s), similar grouping (time-window pairs, burst cap, union-find, best pick, periods, pruning), image signature, deletion totals (persist, survive resets) and selection-route unit tests. UI tests: storage → video row starts culling; similar scan finds the seeded pair, marks flip, apply sends one to Cull's trash.
   - Phase A (65/65 then: 49 Swift Testing + 16 XCUITest) added: deck throw/drag isolation, sort, skip, kept-list and Swift-side filter matching unit tests; UI tests for rapid swipes, largest-first, skip, the seek bar, the kept list and reset by attribute. The list below is the pre-Phase-A baseline.
   - 31 Swift Testing unit tests: queue/undo/counts, filter predicates, SwiftData store (including "in-place caches match a fresh reload"), filter presets (month boundaries, matching), swipe rules (axis lock, 1:1 tracking, threshold, throw-back, flick, vertical lock never decides, info).
@@ -169,6 +192,7 @@ _Last updated: 2026-11-27_
   - Dark mode.
 
 ## Not verified / known gaps
+- The iCloud-only notes couldn't be shown in the simulator, which has no iCloud-only assets. They're driven by `PHImageResultIsInCloudKey`; check on a device with iCloud Photos "Optimize Storage" and downloads off.
 - **Phase B, needs a device**:
   - Vision feature prints never ran in the simulator, which used the pixel-signature fallback. The same Vision API was checked on macOS: crops and brightness changes of one photo scored 0.04–0.09, unrelated photos 1.0–1.8. The thresholds (0.25 / 0.45 / 0.65) still need tuning on real bursts and look-alike shots.
   - Scan speed on a few thousand photos, and the storage scan on a 10k library, are untimed. Thumbnails are requested synchronously inside the task group (4 at a time).
@@ -193,5 +217,5 @@ _Last updated: 2026-11-27_
 
 ## Next time, start here
 1. `git pull`, then boot the simulator and run `Scripts/seed_simulator.sh` if the library was erased.
-2. In MobileBuildMCP, run `session_show_defaults`, then `test_sim`. The baseline is 90/90 passing. The similar-photos UI test needs the seeded `similar_1/2.jpg` pair: re-run the seed script, or `xcrun simctl addmedia` those two from `TestMedia/`.
+2. In MobileBuildMCP, run `session_show_defaults`, then `test_sim`. The baseline is 94/94 passing. The similar-photos UI test needs the seeded `similar_1/2.jpg` pair: re-run the seed script, or `xcrun simctl addmedia` those two from `TestMedia/`.
 3. On a device, check Phase B: similar-photo grouping and thresholds on real bursts, storage totals against Settings › Photos, and the space-freed total after a real delete. Then check Phase A: sound in silent mode, the fast-swipe fix, the seek bar and swipe-down skip (see Not verified). Then check the swipe feel and tune the `SwipeRules` constants if needed. Also check the cards with VoiceOver.

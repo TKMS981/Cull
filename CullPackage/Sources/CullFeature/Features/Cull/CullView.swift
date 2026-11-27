@@ -247,7 +247,7 @@ struct CullView: View {
     }
 
     private func controls(_ session: CullSession, current: CullItem) -> some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 10) {
             // Leading slot: sound toggle for media with audio, otherwise empty to keep the layout centred.
             Group {
                 if current.asset.hasAudio {
@@ -259,6 +259,9 @@ struct CullView: View {
                         } icon: {
                             Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                         }
+                        // Sized inside the label: the glass style pads around it, so the
+                        // visible button stays within the 48 pt slot.
+                        .frame(width: 26, height: 26)
                     }
                     .accessibilityIdentifier("muteButton")
                 } else {
@@ -267,7 +270,7 @@ struct CullView: View {
             }
             .frame(width: 48, height: 48)
 
-            Spacer()
+            Spacer(minLength: 0)
 
             Button {
                 requestThrow(.keep)
@@ -309,12 +312,13 @@ struct CullView: View {
             .buttonBorderShape(.circle)
             .accessibilityIdentifier("trashSwipeButton")
 
-            Spacer()
+            Spacer(minLength: 0)
 
             Button {
                 infoItem = current
             } label: {
                 Label("情報", systemImage: "info.circle")
+                    .frame(width: 26, height: 26)
             }
             .disabled(isZoomed)
             .frame(width: 48, height: 48)
@@ -323,6 +327,9 @@ struct CullView: View {
         .labelStyle(.iconOnly)
         .font(.title3)
         .buttonStyle(.glass)
+        // Fixed-size icon buttons: at accessibility text sizes they'd outgrow the
+        // screen width (VoiceOver still reads each label).
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
     }
 
     private func requestThrow(_ decision: Decision) {

@@ -60,7 +60,7 @@ struct MediaCardView: View {
         } else if asset.mediaSubtypes.contains(.photoLive) {
             LivePhotoCardView(asset: asset, isActive: isActive, isMuted: isMuted, highQuality: isZoomed)
         } else {
-            AssetImageView(asset: asset, highQuality: isZoomed)
+            AssetImageView(asset: asset, highQuality: isZoomed, showsAvailability: isActive)
         }
     }
 }

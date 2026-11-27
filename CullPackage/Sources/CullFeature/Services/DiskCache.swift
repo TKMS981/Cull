@@ -61,6 +61,14 @@ nonisolated final class DiskCache<Value: Codable & Sendable>: Sendable {
         }
     }
 
+    /// Every cached identifier (for pruning against the library).
+    var allKeys: Set<String> {
+        state.withLock { state in
+            loadIfNeeded(&state)
+            return Set(state.entries?.keys.map { $0 } ?? [])
+        }
+    }
+
     var count: Int { state.withLock { $0.entries?.count ?? 0 } }
 
     /// Writes pending changes (call after a batch, not per item).
