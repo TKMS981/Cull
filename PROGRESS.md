@@ -1,6 +1,6 @@
 # Progress
 
-_Last updated: 2026-11-26_
+_Last updated: 2026-11-27_
 
 ## Done
 - **Project setup**: workspace + Swift package created with MobileBuildMCP `scaffold_ios_project`. All code is in `CullPackage/Sources/CullFeature`.
@@ -70,9 +70,23 @@ _Last updated: 2026-11-26_
   - `DecisionStore` updates its `keptIDs` / `trash` / `trashedIDs` caches in place after each save instead of re-fetching every row. A failed save rolls back and does a full reload.
   - The setup screen's match count runs in a `@concurrent` function. Stale results are dropped when the filter changes.
 
+## Phase A (2026-11-27): device feedback fixes + features
+- **Fix: no video sound on device.** No `AVAudioSession` was configured, so playback used `.soloAmbient` and the Ring/Silent switch muted it. `AudioSessionCoordinator` now uses `.playback` (moviePlayback) while sound is on and `.ambient` + `.mixWithOthers` while muted (so muted autoplay never stops the user's music). Session IPC runs on a serial queue and stale requests are skipped. Also fixed `isMuted` being read from a stale view copy after awaiting the AVAsset: player state lives in `@Observable VideoPlayback`.
+- **Fix: cards spinning up the screen on fast consecutive swipes.**
+  - Drag state is a `DeckDrag` keyed by the card's `localIdentifier`. A new top card always starts fresh, late callbacks from an old card are ignored, and a `@GestureState` cleans up gestures SwiftUI cancels without `onEnded`.
+  - Tilt is clamped (±18°, zero for a degenerate width).
+  - The flying card's pose is fixed at throw time (`SwipeRules.throwPose`): it leans its own way and never ends above its resting height.
+- **Sort order** (setup screen): newest (default) / oldest / largest. Largest measures sizes in a task group inside the `@concurrent` load, with a launch-long cache and a progress screen.
+- **Skip ("not now")**: button between keep and trash, or swipe down (≥ 120 pt or flick). Never persisted; undoable; HUD tally and summary tile. Undo now restores the stored decision from before (matters with "show kept items again").
+- **Video seek bar**: elapsed / total and a scrubber on the top video card and trash preview. The deck fences off drags that touch it, like pinches. The card's VoiceOver element moved inside `MediaCardView` so the bar is its own adjustable control (±5 s).
+- **Kept screen** (`Features/Kept`): grid of kept items with attribute chips, multi-select → un-keep / send to trash, a full-screen preview. `AssetPreviewView` (`Features/Shared`) is shared with the trash.
+- **Reset kept history** sheet: all / by attributes / by album, with a live count.
+- Identifier fetches (`fetchAssets(withLocalIdentifiers:options:)`) didn't reliably apply the `mediaSubtypes` bitmask predicate, so kept items matching e.g. Live Photos weren't found. They are now tested in Swift (`CullFilter.matches`). The setup screen's "N to sort" with attributes + kept items used the same path and is fixed too.
+- UI tests pin `-sortOrder newest` in the argument domain, so the sort test can't leak into the others.
+
 ## Verified
 - **Build**: `build_sim` / `build_run_sim` succeed with no warnings (Xcode 27.2, iPhone 18 Pro, iOS 27.2).
-- **Tests**: `test_sim` passes 41/41.
+- **Tests**: `test_sim` passes 65/65 (49 Swift Testing + 16 XCUITest) as of Phase A. Phase A added: deck throw/drag isolation, sort, skip, kept-list and Swift-side filter matching unit tests; UI tests for rapid swipes, largest-first, skip, the seek bar, the kept list and reset by attribute. The list below is the pre-Phase-A baseline.
   - 31 Swift Testing unit tests: queue/undo/counts, filter predicates, SwiftData store (including "in-place caches match a fresh reload"), filter presets (month boundaries, matching), swipe rules (axis lock, 1:1 tracking, threshold, throw-back, flick, vertical lock never decides, info).
   - 10 XCUITests:
     - Pinch zoom disables left/right/up swipes; double-tap restores swiping.
@@ -108,6 +122,11 @@ _Last updated: 2026-11-26_
   - Dark mode.
 
 ## Not verified / known gaps
+- **Phase A, needs a device**:
+  - Sound with the Ring/Silent switch on silent, and that muted autoplay leaves other apps' music playing.
+  - The fast-swipe spin can't be reproduced in the simulator. The fix removes every path found in the code (shared drag state across cards, cancelled drags leaking, unbounded tilt, upward throw target), and the UI test covers a burst of fast flicks. Confirm on the device it was reported on.
+  - Seek-bar feel, and swipe-down-to-skip feel (`SwipeRules.skipDistance` / `skipFlick`).
+- Largest-first wasn't timed on a 10k library (the 10k simulator no longer exists). Ordering 10k sizes is unit-tested under 1 s. Size reading is parallel and off-main, but its wall time on a real 10k library is unmeasured.
 - The new gesture setup (simultaneous swipe, content back-swipe disabled, Live Photo long press) hasn't yet been tried on a device.
   - In the simulator, the logs showed the back-swipe recognizer is found when culling starts and restored when you leave.
   - Live Photo touch-and-hold playback hasn't been checked.
@@ -122,5 +141,5 @@ _Last updated: 2026-11-26_
 
 ## Next time, start here
 1. `git pull`, then boot the simulator and run `Scripts/seed_simulator.sh` if the library was erased.
-2. In MobileBuildMCP, run `session_show_defaults`, then `test_sim`. The baseline is 41/41 passing.
-3. On a device, check the swipe feel and tune the `SwipeRules` constants if needed. Also check the cards with VoiceOver.
+2. In MobileBuildMCP, run `session_show_defaults`, then `test_sim`. The baseline is 65/65 passing.
+3. On a device, check Phase A: sound in silent mode, the fast-swipe fix, the seek bar and swipe-down skip (see Not verified). Then check the swipe feel and tune the `SwipeRules` constants if needed. Also check the cards with VoiceOver.
