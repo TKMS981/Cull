@@ -84,9 +84,32 @@ _Last updated: 2026-11-27_
 - Identifier fetches (`fetchAssets(withLocalIdentifiers:options:)`) didn't reliably apply the `mediaSubtypes` bitmask predicate, so kept items matching e.g. Live Photos weren't found. They are now tested in Swift (`CullFilter.matches`). The setup screen's "N to sort" with attributes + kept items used the same path and is fixed too.
 - UI tests pin `-sortOrder newest` in the argument domain, so the sort test can't leak into the others.
 
+## Phase B (2026-11-27): analysis and detection
+- **All-time space freed**: each confirmed `deleteAssets` from Cull's trash is stored as a `DeletionRecord` (count + bytes, measured just before the delete) in the same SwiftData store. The setup screen shows "これまで合計 X 削減 / N 件を削除しました" once anything has been deleted.
+- **Storage screen** (`Features/Storage`, "ストレージを分析" on the setup screen):
+  - Library total, a stacked bar and per-type rows (video / screenshot / Live Photo / portrait / panorama / other photos). Each asset is counted in exactly one type (`StorageCategory.classify`), so the rows add up to the total.
+  - The 50 biggest files, with thumbnails.
+  - Tapping a type, a file or "まとめて整理" starts culling exactly those items, biggest first: new `Route.cullSelection(AssetSelection)`, and `CullSession` takes a fixed identifier list.
+  - The scan runs off the main actor (`StorageAnalyzer` → `AssetSizeReader`: parallel, progress, cancel). `StorageModel` lives in the root view, so the last report survives leaving the screen. A library change marks it stale and it is redone.
+  - `AssetSizeReader` now also keeps sizes on disk (`Caches/AssetSizes.json`, keyed by modification date), so a relaunch doesn't re-measure.
+- **Similar photos** (`Features/Similar`, "似た写真を探す"):
+  - Scope: past week / 30 days / 3 months / year / custom range, plus album. There is no whole-library option by design. Match level: near-duplicates only / standard / loose. Only unsorted photos (videos excluded).
+  - `SimilarPhotoFinder` (`@concurrent`):
+    - Only photos taken within 3 minutes of each other are compared, each against at most 8 earlier ones (`SimilarGrouping.candidatePairs`). Photos with no neighbour in time are never analysed.
+    - Each candidate gets a Vision `GenerateImageFeaturePrintRequest` print from a 360 px local thumbnail (no iCloud download), 4 at a time, cached for the launch.
+    - Matches under the level's threshold are joined into groups (union-find).
+    - Where Vision gives no usable print, a 16×16 colour `ImageSignature` is compared instead. The simulator fails with "Failed to create espresso context", or returns all-zero prints on CPU.
+  - Review (`SimilarReviewView`), one group at a time, side by side:
+    - The suggested best (favourite > pixels > file size > newest) starts as "残す" and the rest as "ゴミ箱". Tap a photo to flip it; expand opens the full-screen preview.
+    - "この内容で整理" records keep/trash and moves to the next group; "スキップ" moves on without recording anything.
+- Seed script: adds a near-duplicate pair (`similar_1/2.jpg`, a second apart, 3 days ago). `make_exif_photo.swift` takes an optional seconds-ago argument.
+- Only public API in the new code, except the existing `PHAssetResource` `fileSize` KVC read (see Not verified).
+
 ## Verified
 - **Build**: `build_sim` / `build_run_sim` succeed with no warnings (Xcode 27.2, iPhone 18 Pro, iOS 27.2).
-- **Tests**: `test_sim` passes 65/65 (49 Swift Testing + 16 XCUITest) as of Phase A. Phase A added: deck throw/drag isolation, sort, skip, kept-list and Swift-side filter matching unit tests; UI tests for rapid swipes, largest-first, skip, the seek bar, the kept list and reset by attribute. The list below is the pre-Phase-A baseline.
+- **Tests**: `test_sim` passes 83/83 (65 Swift Testing + 18 XCUITest) as of Phase B.
+  - Phase B added: storage report (one category per asset, totals, ranking, 10k under 1 s), similar grouping (time-window pairs, burst cap, union-find, best pick, periods, pruning), image signature, deletion totals (persist, survive resets) and selection-route unit tests. UI tests: storage → video row starts culling; similar scan finds the seeded pair, marks flip, apply sends one to Cull's trash.
+  - Phase A (65/65 then: 49 Swift Testing + 16 XCUITest) added: deck throw/drag isolation, sort, skip, kept-list and Swift-side filter matching unit tests; UI tests for rapid swipes, largest-first, skip, the seek bar, the kept list and reset by attribute. The list below is the pre-Phase-A baseline.
   - 31 Swift Testing unit tests: queue/undo/counts, filter predicates, SwiftData store (including "in-place caches match a fresh reload"), filter presets (month boundaries, matching), swipe rules (axis lock, 1:1 tracking, threshold, throw-back, flick, vertical lock never decides, info).
   - 10 XCUITests:
     - Pinch zoom disables left/right/up swipes; double-tap restores swiping.
@@ -122,6 +145,11 @@ _Last updated: 2026-11-27_
   - Dark mode.
 
 ## Not verified / known gaps
+- **Phase B, needs a device**:
+  - Vision feature prints never ran in the simulator, which used the pixel-signature fallback. The same Vision API was checked on macOS: crops and brightness changes of one photo scored 0.04–0.09, unrelated photos 1.0–1.8. The thresholds (0.25 / 0.45 / 0.65) still need tuning on real bursts and look-alike shots.
+  - Scan speed on a few thousand photos, and the storage scan on a 10k library, are untimed. Thumbnails are requested synchronously inside the task group (4 at a time).
+  - The space-freed total is unit-tested. A confirmed delete wasn't run in UI tests, because it would use up the seed media.
+- The storage screen and largest-first both rely on the `fileSize` KVC key, which is not public API. Before App Store submission, weigh it, or fall back to an estimate (e.g. pixel count × type).
 - **Phase A, needs a device**:
   - Sound with the Ring/Silent switch on silent, and that muted autoplay leaves other apps' music playing.
   - The fast-swipe spin can't be reproduced in the simulator. The fix removes every path found in the code (shared drag state across cards, cancelled drags leaking, unbounded tilt, upward throw target), and the UI test covers a burst of fast flicks. Confirm on the device it was reported on.
@@ -141,5 +169,5 @@ _Last updated: 2026-11-27_
 
 ## Next time, start here
 1. `git pull`, then boot the simulator and run `Scripts/seed_simulator.sh` if the library was erased.
-2. In MobileBuildMCP, run `session_show_defaults`, then `test_sim`. The baseline is 65/65 passing.
-3. On a device, check Phase A: sound in silent mode, the fast-swipe fix, the seek bar and swipe-down skip (see Not verified). Then check the swipe feel and tune the `SwipeRules` constants if needed. Also check the cards with VoiceOver.
+2. In MobileBuildMCP, run `session_show_defaults`, then `test_sim`. The baseline is 83/83 passing. The similar-photos UI test needs the seeded `similar_1/2.jpg` pair: re-run the seed script, or `xcrun simctl addmedia` those two from `TestMedia/`.
+3. On a device, check Phase B: similar-photo grouping and thresholds on real bursts, storage totals against Settings › Photos, and the space-freed total after a real delete. Then check Phase A: sound in silent mode, the fast-swipe fix, the seek bar and swipe-down skip (see Not verified). Then check the swipe feel and tune the `SwipeRules` constants if needed. Also check the cards with VoiceOver.

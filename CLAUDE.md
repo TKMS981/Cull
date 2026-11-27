@@ -9,7 +9,7 @@ SwiftUI app for culling photos, videos and Live Photos one at a time by swiping.
 - No third-party dependencies without asking first.
 
 ## Project layout
-- `Cull.xcworkspace` (open this) = thin app shell `Cull/` + Swift package `CullPackage/`. All app code lives in `CullPackage/Sources/CullFeature/` (`App/`, `Models/`, `Persistence/`, `Services/`, `Features/{Setup,Cull,Info,Trash,Kept,Shared}`); `Cull/CullApp.swift` only hosts `CullRootView()`.
+- `Cull.xcworkspace` (open this) = thin app shell `Cull/` + Swift package `CullPackage/`. All app code lives in `CullPackage/Sources/CullFeature/` (`App/`, `Models/`, `Persistence/`, `Services/`, `Features/{Setup,Cull,Info,Trash,Kept,Storage,Similar,Shared}`); `Cull/CullApp.swift` only hosts `CullRootView()`.
 - Build settings live in `Config/*.xcconfig`. Never commit a Team ID or personal bundle ID: put them in gitignored `Config/Local.xcconfig` (see `Local.xcconfig.example`).
 - Package unit tests: `CullPackage/Tests/CullFeatureTests`. UI tests: `CullUITests/` (target is nonisolated by default via `Tests.xcconfig`).
 - UI tests pass `-UITestInMemoryStore` to start with an empty SwiftData store.
@@ -22,6 +22,9 @@ SwiftUI app for culling photos, videos and Live Photos one at a time by swiping.
 - Undo button reverts the last keep/trash/skip decision (restoring what was stored before).
 - Trash screen: multi-select → restore, or bulk-delete via `PHAssetChangeRequest.deleteAssets` (system confirmation dialog is expected).
 - Kept screen: grid of kept items (attribute filter), multi-select → un-keep or send to trash. Kept history resets all, by attribute, or by album.
+- Trash deletions add to an all-time "space freed" total (`DeletionRecord`) shown on the setup screen.
+- Storage screen: library total, per-type breakdown (each asset in one `StorageCategory`), top 50 files; tapping any of them culls exactly those items biggest first (`Route.cullSelection`). Sizes are measured off-main and cached on disk.
+- Similar photos: scoped to a period/album (never the whole library), photos close in time compared with Vision feature prints (pixel-signature fallback where Vision can't run, e.g. the simulator); review one group at a time, apply = keep/trash.
 - Audio: muted autoplay uses `.ambient` + mixWithOthers; sound on switches to `.playback` (heard in silent mode). See `AudioSessionCoordinator`.
 
 ## PhotoKit notes (not covered by the photokit skill)
