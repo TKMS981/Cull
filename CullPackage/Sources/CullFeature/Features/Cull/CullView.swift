@@ -7,11 +7,26 @@ struct CullView: View {
     let filter: CullFilter
     var sort: CullSort = .oldest
     let includeKept: Bool
+    /// Cull exactly these items in this order instead of running `filter`.
+    var identifiers: [String]?
 
     @Environment(PhotoLibraryService.self) private var library
     @Environment(DecisionStore.self) private var store
     @Environment(\.displayScale) private var displayScale
     @Environment(\.dismiss) private var dismiss
+
+    init(filter: CullFilter, sort: CullSort = .oldest, includeKept: Bool) {
+        self.filter = filter
+        self.sort = sort
+        self.includeKept = includeKept
+    }
+
+    init(selection: AssetSelection) {
+        filter = CullFilter()
+        sort = .largest
+        includeKept = selection.includeKept
+        identifiers = selection.ids
+    }
 
     @State private var session: CullSession?
     @State private var isZoomed = false
@@ -74,7 +89,8 @@ struct CullView: View {
             if let session {
                 session.resumeCaching()
             } else {
-                let newSession = CullSession(filter: filter, sort: sort, includeKept: includeKept, library: library, store: store)
+                let newSession = CullSession(filter: filter, sort: sort, includeKept: includeKept, identifiers: identifiers,
+                                             library: library, store: store)
                 session = newSession
                 await newSession.load()
             }

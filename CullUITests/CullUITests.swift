@@ -481,4 +481,39 @@ final class CullUITests: XCTestCase {
         XCTAssertFalse(live.isSelected)
         XCTAssertEqual(app.switches["dateRangeToggle"].firstMatch.value as? String, "1")
     }
+
+    // MARK: Phase B
+
+    /// The storage screen measures the library and a category row starts culling just
+    /// those items, biggest first.
+    @MainActor
+    func testStorageAnalysisLeadsIntoCulling() throws {
+        try openFromSetup("storageButton")
+        let total = app.descendants(matching: .any)["storageTotal"]
+        XCTAssertTrue(total.waitForExistence(timeout: 30), "the scan finishes and shows a total")
+        XCTAssertTrue(app.buttons.matching(identifier: "storageLargeItem").firstMatch.waitForExistence(timeout: 5))
+
+        let videos = app.buttons["storageCategory.video"]
+        XCTAssertTrue(videos.waitForExistence(timeout: 5), "seed includes a video")
+        videos.tap()
+        let card = app.descendants(matching: .any)["mediaCard"]
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        let progress = app.descendants(matching: .any)["progress"]
+        XCTAssertTrue(progress.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(remaining(progress), 1)
+    }
+
+    @MainActor
+    private func openFromSetup(_ identifier: String) throws {
+        launch()
+        let request = app.buttons["requestAccessButton"]
+        if request.waitForExistence(timeout: 2) {
+            request.tap()
+            app.tap()
+        }
+        let button = app.buttons[identifier]
+        XCTAssertTrue(button.waitForExistence(timeout: 10))
+        for _ in 0..<4 where !button.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        button.tap()
+    }
 }

@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "%@ 時点" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As of %@"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "%@（%lld）" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -11,6 +22,29 @@
           }
         }
       }
+    },
+    "%lld 件" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld item"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld items"
+                }
+              }
+            }
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "%lld 件の保持を解除" : {
       "localizations" : {
@@ -30,6 +64,17 @@
                 }
               }
             }
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "%lld 件はサイズを取得できませんでした（iCloud のみにある項目など）。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t get the size of %lld items (for example, items only in iCloud)."
           }
         }
       },
@@ -236,6 +281,28 @@
         }
       }
     },
+    "その他の写真" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Other Photos"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "まとめて整理" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sort All"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "よく使う条件をワンタップで設定します。もう一度タップすると解除します。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -412,6 +479,39 @@
         }
       }
     },
+    "ストレージ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Storage"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "ストレージを分析" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyze Storage"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "タップすると、その種類を容量が大きい順に整理できます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a type to sort it, largest first."
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "パノラマ" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -500,6 +600,28 @@
         }
       }
     },
+    "ライブラリの合計" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Library Total"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "ライブラリ内の写真とビデオの容量を集計します。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adds up the space your photos and videos take."
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "レンズ" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -511,6 +633,17 @@
         }
       }
     },
+    "一度計算したサイズは保存され、次回からすばやく表示されます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sizes are saved once measured, so next time is quick."
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "一部の写真へのアクセスのみ許可されています" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -521,6 +654,17 @@
           }
         }
       }
+    },
+    "上位 %lld 件。タップした項目から大きい順に整理を始めます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top %lld. Tap one to start sorting from there, largest first."
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "並び順" : {
       "localizations" : {
@@ -688,6 +832,17 @@
       },
       "extractionState" : "manual"
     },
+    "再計算" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recalculate"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "写真" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -720,6 +875,17 @@
           }
         }
       }
+    },
+    "分析を開始" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Analysis"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "削除" : {
       "extractionState" : "stale",
@@ -775,6 +941,28 @@
           }
         }
       }
+    },
+    "大きいファイル" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Largest Files"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "大きい順に整理を始めます" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starts sorting, largest first"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "完了" : {
       "extractionState" : "stale",
@@ -1083,6 +1271,17 @@
           }
         }
       }
+    },
+    "種類別" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By Type"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "約 %@ 削減可能" : {
       "extractionState" : "stale",

@@ -7,6 +7,7 @@ public struct CullRootView: View {
     @State private var library = PhotoLibraryService()
     @State private var store: DecisionStore
     @State private var path: [Route] = []
+    @State private var storage = StorageModel()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
 
@@ -39,16 +40,24 @@ public struct CullRootView: View {
                             switch route {
                             case let .cull(filter, sort, includeKept):
                                 CullView(filter: filter, sort: sort, includeKept: includeKept)
+                            case let .cullSelection(selection):
+                                CullView(selection: selection)
                             case .trash:
                                 TrashView()
                             case .kept:
                                 KeptView()
+                            case .storage:
+                                StorageView(path: $path)
+
                             }
                         }
                 }
                 .task(id: library.status) {
                     pruneTrash()
-                    for await _ in library.changes() { pruneTrash() }
+                    for await _ in library.changes() {
+                        pruneTrash()
+                        storage.libraryDidChange()
+                    }
                 }
             case .notDetermined:
                 ContentUnavailableView {
@@ -77,6 +86,7 @@ public struct CullRootView: View {
         }
         .environment(library)
         .environment(store)
+        .environment(storage)
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { library.refreshStatus() }
         }

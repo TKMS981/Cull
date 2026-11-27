@@ -27,6 +27,8 @@ final class CullSession {
     let filter: CullFilter
     let sort: CullSort
     let includeKept: Bool
+    /// A fixed, already-ordered list to cull instead of `filter` + `sort`.
+    let identifiers: [String]?
 
     @ObservationIgnored private let library: PhotoLibraryService
     @ObservationIgnored private let store: DecisionStore
@@ -41,10 +43,12 @@ final class CullSession {
     static let prefetchAhead = 3
     static let keepBehind = 2
 
-    init(filter: CullFilter, sort: CullSort = .oldest, includeKept: Bool, library: PhotoLibraryService, store: DecisionStore, loader: ImageLoader = .shared) {
+    init(filter: CullFilter, sort: CullSort = .oldest, includeKept: Bool, identifiers: [String]? = nil,
+         library: PhotoLibraryService, store: DecisionStore, loader: ImageLoader = .shared) {
         self.filter = filter
         self.sort = sort
         self.includeKept = includeKept
+        self.identifiers = identifiers
         self.library = library
         self.store = store
         self.loader = loader
@@ -72,8 +76,13 @@ final class CullSession {
                 self.sizing = SizingProgress(done: done, total: total)
             }
         }
-        if sort == .largest { sizing = SizingProgress(done: 0, total: 0) }
-        let loaded = await Self.fetchUndecided(filter: filter, sort: sort, skipping: skippedIDs, progress: progress)
+        let loaded: LoadedAssets
+        if let identifiers {
+            loaded = await Self.fetchUndecided(identifiers: identifiers, skipping: skippedIDs)
+        } else {
+            if sort == .largest { sizing = SizingProgress(done: 0, total: 0) }
+            loaded = await Self.fetchUndecided(filter: filter, sort: sort, skipping: skippedIDs, progress: progress)
+        }
         guard phase == .loading else { return }
         sizing = nil
         fetchResult = loaded.fetchResult
@@ -108,6 +117,17 @@ final class CullSession {
             let sizes = await AssetSizeReader.bytes(of: assets, progress: progress)
             assets = CullSort.largestFirst(sizes).map { assets[$0] }
         }
+        return LoadedAssets(fetchResult: result, assets: assets)
+    }
+
+    /// `identifiers` that still exist and aren't decided, in the given order.
+    @concurrent
+    nonisolated static func fetchUndecided(identifiers: [String], skipping skip: Set<String>) async -> LoadedAssets {
+        let result = PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: nil)
+        var byID: [String: PHAsset] = [:]
+        byID.reserveCapacity(result.count)
+        result.enumerateObjects { asset, _, _ in byID[asset.localIdentifier] = asset }
+        let assets = identifiers.compactMap { id in skip.contains(id) ? nil : byID[id] }
         return LoadedAssets(fetchResult: result, assets: assets)
     }
 

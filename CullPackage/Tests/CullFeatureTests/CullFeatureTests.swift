@@ -492,6 +492,66 @@ struct CullFilterMatchingTests {
     }
 }
 
+@Suite("Storage report")
+struct StorageReportTests {
+    @Test func eachAssetHasOneCategory() {
+        let examples: [(PHAssetMediaType, PHAssetMediaSubtype, StorageCategory)] = [
+            (.video, .videoHighFrameRate, .video),
+            (.image, .photoScreenshot, .screenshot),
+            (.image, [.photoLive, .photoDepthEffect], .livePhoto),
+            (.image, .photoDepthEffect, .portrait),
+            (.image, .photoPanorama, .panorama),
+            (.image, .photoHDR, .photo),
+            (.image, [], .photo),
+        ]
+        for (type, subtypes, expected) in examples {
+            #expect(StorageCategory.classify(mediaType: type, subtypes: subtypes) == expected)
+        }
+    }
+
+    @Test func totalsBreakdownAndRanking() {
+        let items = [
+            StorageItem(id: "p1", category: .photo, bytes: 3_000_000),
+            StorageItem(id: "v1", category: .video, bytes: 80_000_000),
+            StorageItem(id: "p2", category: .photo, bytes: 5_000_000),
+            StorageItem(id: "s1", category: .screenshot, bytes: 400_000),
+            StorageItem(id: "v2", category: .video, bytes: nil),
+            StorageItem(id: "v3", category: .video, bytes: 20_000_000),
+        ]
+        let report = StorageReport.build(items, topCount: 3)
+        #expect(report.totalCount == 6)
+        #expect(report.totalBytes == 108_400_000)
+        #expect(report.unknownCount == 1)
+        #expect(report.categories.map(\.category) == [.video, .photo, .screenshot], "biggest category first")
+        let videos = report.categories[0]
+        #expect(videos.count == 3)
+        #expect(videos.bytes == 100_000_000)
+        #expect(videos.ids == ["v1", "v3", "v2"], "biggest first, unknown size last")
+        #expect(report.largest.map(\.id) == ["v1", "v3", "p2"])
+        #expect(report.categories.map(\.bytes).reduce(0, +) == report.totalBytes, "categories add up to the total")
+        #expect(abs(report.fraction(of: videos) - 100.0 / 108.4) < 0.0001)
+    }
+
+    @Test func emptyLibrary() {
+        let report = StorageReport.build([])
+        #expect(report.totalBytes == 0)
+        #expect(report.categories.isEmpty)
+        #expect(report.largest.isEmpty)
+    }
+
+    @Test func tenThousandItemsBuildQuickly() {
+        let categories = StorageCategory.allCases
+        let items = (0..<10_000).map { i in
+            StorageItem(id: "\(i)", category: categories[i % categories.count], bytes: i % 97 == 0 ? nil : Int64((i * 7919) % 50_000_000))
+        }
+        let start = ContinuousClock.now
+        let report = StorageReport.build(items)
+        #expect(ContinuousClock.now - start < .seconds(1))
+        #expect(report.largest.count == StorageReport.topCount)
+        #expect(zip(report.largest, report.largest.dropFirst()).allSatisfy { ($0.bytes ?? 0) >= ($1.bytes ?? 0) })
+    }
+}
+
 @Suite("Space freed", .serialized)
 struct SavingsTests {
     @Test func deletionsAddUpAndPersist() throws {
@@ -517,5 +577,16 @@ struct SavingsTests {
         store.clear(ids: ["a"])
         #expect(store.deletedCount == 2)
         #expect(store.freedBytes == 1_000)
+    }
+}
+
+@Suite("Asset selection route")
+struct AssetSelectionTests {
+    @Test func selectionsCompareByIdentityNotContents() {
+        let a = AssetSelection(ids: ["x", "y"], includeKept: false)
+        let b = AssetSelection(ids: ["x", "y"], includeKept: false)
+        #expect(a != b)
+        #expect(a == a)
+        #expect(Route.cullSelection(a) == Route.cullSelection(a))
     }
 }

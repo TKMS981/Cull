@@ -3,8 +3,22 @@ import SwiftUI
 
 enum Route: Hashable {
     case cull(CullFilter, sort: CullSort, includeKept: Bool)
+    /// Cull exactly these items, in this order (from the storage screen).
+    case cullSelection(AssetSelection)
     case trash
     case kept
+    case storage
+}
+
+/// A fixed list of items to cull, e.g. "videos, biggest first". Compared by `id` so a
+/// long list doesn't get hashed on every navigation.
+struct AssetSelection: Hashable {
+    let id = UUID()
+    let ids: [String]
+    let includeKept: Bool
+
+    static func == (a: Self, b: Self) -> Bool { a.id == b.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 /// Launch screen: choose what to cull, plus kept-history settings.
@@ -38,7 +52,7 @@ struct FilterSetupView: View {
         Form {
             if library.isLimited { limitedSection }
             quickStartSection
-            if store.deletedCount > 0 { toolsSection }
+            toolsSection
             albumSection
             dateSection
             attributeSection
@@ -189,10 +203,15 @@ struct FilterSetupView: View {
         }
     }
 
-    /// Space freed so far.
+    /// Space freed so far, and the storage tool.
     private var toolsSection: some View {
         Section {
-            savingsRow
+            if store.deletedCount > 0 {
+                savingsRow
+            }
+            toolRow("ストレージを分析", systemImage: "chart.bar.xaxis", tint: .blue, identifier: "storageButton") {
+                path.append(.storage)
+            }
         } header: {
             Text("容量を空ける")
         }
@@ -218,6 +237,29 @@ struct FilterSetupView: View {
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("savingsSummary")
+    }
+
+    private func toolRow(_ title: LocalizedStringKey, systemImage: String, tint: Color, identifier: String,
+                         action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 30, height: 30)
+                    .background(tint.gradient, in: .rect(cornerRadius: 7))
+                    .accessibilityHidden(true)
+                Text(title)
+                Spacer()
+                Image(systemName: "chevron.forward")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
     }
 
     private var albumSection: some View {
