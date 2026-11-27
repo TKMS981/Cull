@@ -2,48 +2,27 @@ import AVFoundation
 import Photos
 import SwiftUI
 
-/// Muted autoplay looping video. Shows the poster frame until the player is ready.
+/// Autoplaying looping video (muted until the user turns sound on). Shows the
+/// poster frame until the player is ready. Playback state lives in `VideoPlayback`,
+/// which the enclosing card owns so its seek bar can sit outside the zoom container.
 struct VideoCardView: View {
     let asset: PHAsset
     let isActive: Bool
-    let isMuted: Bool
-
-    @State private var player: AVQueuePlayer?
-    @State private var looper: AVPlayerLooper?
-    @State private var isReady = false
+    @Bindable var playback: VideoPlayback
 
     var body: some View {
         ZStack {
             AssetImageView(asset: asset)
-            if let player, isActive {
-                PlayerLayerView(player: player, isReady: $isReady)
-                    .opacity(isReady ? 1 : 0)
+            if let player = playback.player, isActive {
+                PlayerLayerView(player: player, isReady: $playback.isReady)
+                    .opacity(playback.isReady ? 1 : 0)
             }
         }
         .task(id: isActive) {
-            guard isActive else { return stop() }
-            await start()
+            guard isActive else { return playback.stop() }
+            await playback.start(asset: asset)
         }
-        .onChange(of: isMuted) { _, muted in player?.isMuted = muted }
-        .onDisappear { stop() }
-    }
-
-    private func start() async {
-        guard player == nil, let avAsset = await ImageLoader.shared.videoAsset(for: asset), !Task.isCancelled else { return }
-        let item = AVPlayerItem(asset: avAsset)
-        let queuePlayer = AVQueuePlayer()
-        queuePlayer.isMuted = isMuted
-        looper = AVPlayerLooper(player: queuePlayer, templateItem: item)
-        player = queuePlayer
-        queuePlayer.play()
-    }
-
-    private func stop() {
-        player?.pause()
-        looper?.disableLooping()
-        looper = nil
-        player = nil
-        isReady = false
+        .onDisappear { playback.stop() }
     }
 }
 

@@ -28,6 +28,7 @@ struct TrashPreviewView: View {
             .accessibilityLabel(Text(asset.accessibilityKind))
             .accessibilityAddTraits(.isImage)
             .accessibilityIdentifier("trashPreview")
+            .audioSessionAudible(!isMuted && asset.hasAudio)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

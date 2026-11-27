@@ -10,6 +10,8 @@ struct MediaCardView: View {
     var onToggleMute: () -> Void = {}
     var onPinchingChange: ((Bool) -> Void)? = nil
 
+    @State private var playback = VideoPlayback()
+
     var body: some View {
         ZoomableContainer(
             isZoomed: $isZoomed,
@@ -20,12 +22,13 @@ struct MediaCardView: View {
         }
         .background(.black)
         .clipShape(.rect(cornerRadius: 24))
+        .onChange(of: isMuted, initial: true) { _, muted in playback.isMuted = muted }
     }
 
     @ViewBuilder
     private var content: some View {
         if asset.mediaType == .video {
-            VideoCardView(asset: asset, isActive: isActive, isMuted: isMuted)
+            VideoCardView(asset: asset, isActive: isActive, playback: playback)
         } else if asset.mediaSubtypes.contains(.photoLive) {
             LivePhotoCardView(asset: asset, isActive: isActive, isMuted: isMuted, highQuality: isZoomed)
         } else {

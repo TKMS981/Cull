@@ -67,6 +67,8 @@ struct CullView: View {
             }
         }
         .onDisappear { session?.tearDown() }
+        // Sound on → `.playback` (heard even in silent mode); otherwise mix quietly with other audio.
+        .audioSessionAudible(!isMuted && (session?.current?.asset.hasAudio ?? false))
         .sensoryFeedback(trigger: feedback) { _, new in
             switch new?.kind {
             case .armed: .impact(weight: .medium, intensity: 0.7)
