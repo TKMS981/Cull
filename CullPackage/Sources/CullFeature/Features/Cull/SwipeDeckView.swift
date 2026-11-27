@@ -25,38 +25,50 @@ struct SwipeDeckView: View {
     var onInfo: () -> Void
     var onSizeChange: (CGSize) -> Void
 
-    @State private var dragOffset: CGSize = .zero
-    @State private var axis: SwipeAxis?
-    @State private var armed: Decision?
+    /// The drag in progress, tied to the card it started on. `nil` at rest.
+    @State private var drag: DeckDrag?
+    /// True while a finger is on the card. SwiftUI resets it even when it cancels the
+    /// gesture without calling `onEnded`, which is how a cancelled drag is cleaned up.
+    @GestureState private var isTouching = false
     @State private var departing: [Departing] = []
     /// A two-finger pinch is in progress on the top card.
     @State private var isPinching = false
-    /// This drag overlapped a pinch, so it must not decide anything.
-    @State private var dragSawPinch = false
 
+    /// A card flying off. Its pose is fixed at the moment of the throw and never
+    /// reads the live drag, so the next card's drag can't steer it.
     private struct Departing {
         let item: CullItem
-        let offset: CGSize
+        let pose: CardPose
+        /// Distinguishes repeated throws of the same card (after an undo).
+        let throwID: Int
     }
+
+    @State private var throwCount = 0
 
     private enum Role: Equatable {
         case waiting(Int)
         case top
-        case departing(CGSize)
+        case departing(CardPose)
     }
 
     private struct Layer: Identifiable {
         let item: CullItem
         let role: Role
+        /// One view identity per asset, whatever its role: waiting → top → departing.
         var id: String { item.id }
+    }
+
+    /// The top card's live offset: only a drag that started on this very card moves it.
+    private var topOffset: CGSize {
+        guard let drag, drag.itemID == current.id else { return .zero }
+        return drag.offset
     }
 
     var body: some View {
         GeometryReader { proxy in
-            let width = proxy.size.width
             ZStack {
                 ForEach(layers) { layer in
-                    card(layer, width: width)
+                    card(layer, size: proxy.size)
                 }
             }
             .onAppear { onSizeChange(proxy.size) }
@@ -64,7 +76,19 @@ struct SwipeDeckView: View {
             .onChange(of: throwRequest) { _, request in
                 guard let request else { return }
                 throwRequest = nil
-                throwCard(request.decision, width: width)
+                throwCard(request.decision, size: proxy.size)
+            }
+            // A new top card (throw, undo, outside library change) never inherits a drag.
+            .onChange(of: current.id) { _, id in
+                if drag?.itemID != id { resetDrag() }
+            }
+            .onChange(of: isTouching) { _, touching in
+                guard !touching else { return }
+                // A cancelled gesture skips `onEnded`. Check after this update, by which
+                // time a normal release has already thrown or settled the card.
+                Task { @MainActor in
+                    if !isTouching, drag != nil { snapBack() }
+                }
             }
         }
     }
@@ -75,26 +99,35 @@ struct SwipeDeckView: View {
         result.append(Layer(item: current, role: .top))
         // An undo can bring a departing card back; it then shows only in its live role.
         let live = Set(result.map(\.id))
-        result += departing.filter { !live.contains($0.item.id) }.map { Layer(item: $0.item, role: .departing($0.offset)) }
+        result += departing.filter { !live.contains($0.item.id) }.map { Layer(item: $0.item, role: .departing($0.pose)) }
         return result
     }
 
     // MARK: Card
 
-    private func card(_ layer: Layer, width: CGFloat) -> some View {
+    private func card(_ layer: Layer, size: CGSize) -> some View {
+        let width = size.width
         let isTop = layer.role == .top
         let depth: CGFloat
         let offset: CGSize
+        let degrees: Double
+        let zIndex: Double
         switch layer.role {
         case .waiting(let index):
-            depth = CGFloat(index + 1) - progress(dragOffset.width, width: width)
+            depth = CGFloat(index + 1) - progress(topOffset.width, width: width)
             offset = CGSize(width: 0, height: 24 * depth)
+            degrees = 0
+            zIndex = -Double(index + 1)
         case .top:
             depth = 0
-            offset = dragOffset
-        case .departing(let flown):
+            offset = topOffset
+            degrees = SwipeRules.tilt(offsetX: offset.width, width: width)
+            zIndex = 0
+        case .departing(let pose):
             depth = 0
-            offset = flown
+            offset = pose.offset
+            degrees = pose.degrees
+            zIndex = 1
         }
         let lean = progress(offset.width, width: width)
 
@@ -113,21 +146,22 @@ struct SwipeDeckView: View {
         .shadow(color: .black.opacity(depth == 0 ? 0.22 : 0), radius: 14, y: 8)
         .scaleEffect(1 - 0.05 * depth)
         .offset(offset)
-        .rotationEffect(.degrees(Double(offset.width / max(width, 1)) * 12), anchor: .bottom)
+        .rotationEffect(.degrees(degrees), anchor: .bottom)
+        .zIndex(zIndex)
         .allowsHitTesting(isTop)
         // Simultaneous, not `.gesture`: a parent's plain gesture waits for the card's own
         // tap / double-tap / pinch to fail first, which on a device lets the finger travel
         // well past the tap tolerance before the card starts moving. Running alongside them,
         // the swipe tracks from the first couple of points. Pinches are fenced off below.
-        .simultaneousGesture(swipeGesture(width: width), isEnabled: isTop && !isZoomed)
+        .simultaneousGesture(swipeGesture(for: layer.item.id, size: size), isEnabled: isTop && !isZoomed)
         .accessibilityHidden(!isTop)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text(layer.item.asset.accessibilityKind))
         .accessibilityValue(isZoomed ? "zoomed" : "fit")
         .accessibilityIdentifier(isTop ? "mediaCard" : "mediaCardInactive")
         .accessibilityAddTraits(.isImage)
-        .accessibilityAction(named: "保持") { throwCard(.keep, width: width) }
-        .accessibilityAction(named: "ゴミ箱に移動") { throwCard(.trash, width: width) }
+        .accessibilityAction(named: "保持") { throwCard(.keep, size: size) }
+        .accessibilityAction(named: "ゴミ箱に移動") { throwCard(.trash, size: size) }
         .accessibilityAction(named: "情報") { onInfo() }
     }
 
@@ -180,54 +214,44 @@ struct SwipeDeckView: View {
 
     // MARK: Gesture
 
-    private func swipeGesture(width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: SwipeRules.minimumDistance)
+    /// The swipe for the card `itemID`. Callbacks from a card that is no longer on top
+    /// (a late event after a throw or undo) are ignored.
+    private func swipeGesture(for itemID: String, size: CGSize) -> some Gesture {
+        let width = size.width
+        return DragGesture(minimumDistance: SwipeRules.minimumDistance, coordinateSpace: .global)
+            .updating($isTouching) { _, touching, _ in touching = true }
             .onChanged { value in
+                guard itemID == current.id else { return }
+                let previous = drag?.itemID == itemID ? drag : nil
                 // A pinch running alongside (or one that zoomed in) takes over: park the card.
-                if isPinching { dragSawPinch = true }
-                guard !isZoomed, !dragSawPinch else {
-                    if dragOffset != .zero { snapBack() }
-                    return
+                let next = DeckDrag.next(previous, itemID: itemID, translation: value.translation,
+                                         width: width, fenced: isPinching || isZoomed)
+                if previous?.axis == nil, next.axis == .vertical {
+                    // The few points of sideways travel before the lock settle back quickly.
+                    withAnimation(.snappy(duration: 0.15)) { drag = next }
+                } else if next.fenced {
+                    if previous?.offset != .zero { withAnimation(.spring(duration: 0.3, bounce: 0.3)) { drag = next } }
+                    else { drag = next }
+                } else {
+                    // 1:1 with the finger: no animation while dragging.
+                    var transaction = Transaction(animation: nil)
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { drag = next }
                 }
-                let translation = value.translation
-                if axis == nil, let locked = SwipeRules.lock(translation) {
-                    axis = locked
-                    if locked == .vertical {
-                        // The few points of sideways travel before the lock settle back quickly.
-                        withAnimation(.snappy(duration: 0.15)) {
-                            dragOffset = SwipeRules.cardOffset(translation, axis: locked)
-                        }
-                        return
-                    }
-                }
-                // 1:1 with the finger: no animation while dragging.
-                var transaction = Transaction(animation: nil)
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
-                    dragOffset = SwipeRules.cardOffset(translation, axis: axis)
-                }
-                let newArmed = SwipeRules.armed(translation, axis: axis, width: width)
-                if newArmed != armed {
-                    armed = newArmed
-                    if newArmed != nil { onArmed() }
-                }
+                if next.armed != previous?.armed, next.armed != nil { onArmed() }
             }
             .onEnded { value in
-                let lockedAxis = axis
-                let sawPinch = dragSawPinch || isPinching
-                axis = nil
-                armed = nil
-                dragSawPinch = false
-                guard !isZoomed, !sawPinch else { return snapBack() }
+                guard itemID == current.id, let ended = drag, ended.itemID == itemID else { return }
+                guard !isZoomed, !ended.fenced, !isPinching else { return snapBack() }
                 let outcome = SwipeRules.outcome(
                     translation: value.translation,
                     predicted: value.predictedEndTranslation,
-                    axis: lockedAxis,
+                    axis: ended.axis,
                     width: width
                 )
                 switch outcome {
                 case .decide(let decision):
-                    throwCard(decision, width: width)
+                    throwCard(decision, size: size)
                 case .info:
                     snapBack()
                     onInfo()
@@ -238,22 +262,30 @@ struct SwipeDeckView: View {
     }
 
     private func snapBack() {
-        withAnimation(.spring(duration: 0.3, bounce: 0.3)) { dragOffset = .zero }
+        withAnimation(.spring(duration: 0.3, bounce: 0.3)) { drag = nil }
+    }
+
+    /// Drops any drag state at once, with no animation (the top card changed under it).
+    private func resetDrag() {
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { drag = nil }
     }
 
     /// Left (keep) flies the card off to the left; right (trash) to the right.
     /// The decision is recorded immediately; only the visual flight is animated.
-    private func throwCard(_ decision: Decision, width: CGFloat) {
+    private func throwCard(_ decision: Decision, size: CGSize) {
         let item = current
-        let direction: CGFloat = decision == .keep ? -1 : 1
-        let target = CGSize(width: direction * width * 1.5, height: dragOffset.height + 40)
+        let pose = SwipeRules.throwPose(decision, release: topOffset, size: size)
+        throwCount += 1
+        let throwID = throwCount
         departing.removeAll { $0.item.id == item.id }
         withAnimation(.smooth(duration: 0.28)) {
-            departing.append(Departing(item: item, offset: target))
-            dragOffset = .zero
+            departing.append(Departing(item: item, pose: pose, throwID: throwID))
+            drag = nil
             onDecide(decision)
         } completion: {
-            departing.removeAll { $0.item.id == item.id && $0.offset == target }
+            departing.removeAll { $0.throwID == throwID }
         }
     }
 }

@@ -82,3 +82,80 @@ nonisolated enum SwipeRules {
         }
     }
 }
+
+// MARK: Card pose
+
+/// Where a card sits and how far it leans.
+nonisolated struct CardPose: Equatable, Sendable {
+    var offset: CGSize
+    var degrees: Double
+
+    static let rest = CardPose(offset: .zero, degrees: 0)
+}
+
+nonisolated extension SwipeRules {
+    /// The most a card ever leans, dragging or flying off.
+    static let maxTilt: Double = 18
+    /// Lean per card-width of horizontal travel.
+    static let tiltPerWidth: Double = 12
+    /// How far below its resting place a thrown card ends up.
+    static let throwDrop: CGFloat = 40
+
+    /// The lean for a card `x` points off centre. Bounded, and zero for a degenerate
+    /// width, so a momentarily tiny layout can never spin the card.
+    static func tilt(offsetX x: CGFloat, width: CGFloat) -> Double {
+        guard width >= 1, x.isFinite else { return 0 }
+        let raw = Double(x / width) * tiltPerWidth
+        return min(max(raw, -maxTilt), maxTilt)
+    }
+
+    /// The final pose of a card thrown for `decision`, released at `release`.
+    ///
+    /// Fixed at the moment of the throw (the flying layer never reads live drag
+    /// state). Keep / trash leave sideways, leaning the way they travel, and always
+    /// end at or below their resting height: an upward drift at release is dropped,
+    /// so a thrown card can't sail up the screen.
+    static func throwPose(_ decision: Decision, release: CGSize, size: CGSize) -> CardPose {
+        let width = max(size.width, 1)
+        let direction: CGFloat = decision == .keep ? -1 : 1
+        let y = max(release.height, 0) + throwDrop
+        return CardPose(offset: CGSize(width: direction * width * 1.5, height: y), degrees: Double(direction) * maxTilt)
+    }
+}
+
+// MARK: Drag tracking
+
+/// One drag on the deck, tied to the card it started on.
+///
+/// A new card always starts from a fresh value, so an axis lock, armed state or
+/// pinch fence from an earlier drag (including one SwiftUI cancelled without
+/// calling `onEnded`) can never leak into the next card.
+nonisolated struct DeckDrag: Equatable, Sendable {
+    let itemID: String
+    var offset: CGSize = .zero
+    var axis: SwipeAxis?
+    var armed: Decision?
+    /// This drag overlapped a pinch (or another control's drag), so it must not move or decide.
+    var fenced = false
+
+    /// The drag after a gesture change on card `itemID`.
+    static func next(
+        _ previous: DeckDrag?,
+        itemID: String,
+        translation: CGSize,
+        width: CGFloat,
+        fenced: Bool
+    ) -> DeckDrag {
+        var drag = previous?.itemID == itemID ? previous! : DeckDrag(itemID: itemID)
+        if fenced { drag.fenced = true }
+        guard !drag.fenced else {
+            drag.offset = .zero
+            drag.armed = nil
+            return drag
+        }
+        if drag.axis == nil { drag.axis = SwipeRules.lock(translation) }
+        drag.offset = SwipeRules.cardOffset(translation, axis: drag.axis)
+        drag.armed = SwipeRules.armed(translation, axis: drag.axis, width: width)
+        return drag
+    }
+}

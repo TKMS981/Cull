@@ -288,3 +288,64 @@ struct SwipeRulesTests {
         #expect(SwipeRules.outcome(translation: CGSize(width: 9, height: 0), predicted: CGSize(width: 500, height: 0), axis: nil, width: width) == .cancel)
     }
 }
+
+/// Regression: during fast consecutive swipes a card could spin and sail up the screen.
+@Suite("Deck throw & drag isolation")
+struct DeckThrowTests {
+    private let size = CGSize(width: 400, height: 640)
+
+    @Test(arguments: [Decision.keep, .trash], [
+        CGSize(width: -160, height: -90), CGSize(width: 220, height: -400), CGSize(width: 0, height: 0),
+        CGSize(width: 30, height: 25), CGSize(width: -999, height: -999),
+    ])
+    func thrownCardNeverRisesAndLeansItsWay(_ decision: Decision, release: CGSize) {
+        let pose = SwipeRules.throwPose(decision, release: release, size: size)
+        #expect(pose.offset.height >= SwipeRules.throwDrop, "never ends above its resting place")
+        let leftward = decision == .keep
+        #expect((pose.offset.width < 0) == leftward)
+        #expect((pose.degrees < 0) == leftward, "leans the way it travels, so the bottom-anchored tilt swings it down")
+        #expect(abs(pose.degrees) <= SwipeRules.maxTilt)
+        #expect(abs(pose.offset.width) >= size.width, "fully off screen")
+    }
+
+    @Test func tiltIsBoundedAndSafeForDegenerateWidths() {
+        #expect(SwipeRules.tilt(offsetX: 200, width: 400) == 6)
+        #expect(SwipeRules.tilt(offsetX: 10_000, width: 400) == SwipeRules.maxTilt)
+        #expect(SwipeRules.tilt(offsetX: -10_000, width: 400) == -SwipeRules.maxTilt)
+        // Before: a zero width turned 600 pt into 7,200°.
+        #expect(SwipeRules.tilt(offsetX: 600, width: 0) == 0)
+        #expect(SwipeRules.tilt(offsetX: .nan, width: 400) == 0)
+    }
+
+    @Test func newCardStartsFromAFreshDrag() {
+        // A vertical-locked, fenced drag on "a" that SwiftUI cancelled without onEnded…
+        var stale = DeckDrag.next(nil, itemID: "a", translation: CGSize(width: 2, height: -40), width: 400, fenced: false)
+        stale = DeckDrag.next(stale, itemID: "a", translation: CGSize(width: 2, height: -60), width: 400, fenced: true)
+        #expect(stale.axis == .vertical)
+        #expect(stale.fenced)
+        // …must not leak into the next card.
+        let fresh = DeckDrag.next(stale, itemID: "b", translation: CGSize(width: -30, height: 2), width: 400, fenced: false)
+        #expect(fresh.itemID == "b")
+        #expect(fresh.axis == .horizontal)
+        #expect(!fresh.fenced)
+        #expect(fresh.offset.width == -30)
+    }
+
+    @Test func axisStaysLockedWithinOneDrag() {
+        var drag = DeckDrag.next(nil, itemID: "a", translation: CGSize(width: 20, height: 1), width: 400, fenced: false)
+        drag = DeckDrag.next(drag, itemID: "a", translation: CGSize(width: 20, height: -300), width: 400, fenced: false)
+        #expect(drag.axis == .horizontal)
+        #expect(drag.offset.height == -300 * 0.12, "only a little vertical give while horizontal")
+    }
+
+    @Test func fencedDragParksTheCardAndNeverArms() {
+        var drag = DeckDrag.next(nil, itemID: "a", translation: CGSize(width: 200, height: 0), width: 400, fenced: false)
+        #expect(drag.armed == .trash)
+        drag = DeckDrag.next(drag, itemID: "a", translation: CGSize(width: 260, height: 0), width: 400, fenced: true)
+        #expect(drag.offset == .zero)
+        #expect(drag.armed == nil)
+        // Stays fenced for the rest of that drag even after the pinch ends.
+        drag = DeckDrag.next(drag, itemID: "a", translation: CGSize(width: 300, height: 0), width: 400, fenced: false)
+        #expect(drag.fenced && drag.offset == .zero)
+    }
+}

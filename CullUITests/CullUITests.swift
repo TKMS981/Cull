@@ -137,6 +137,33 @@ final class CullUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["infoSheet"].exists, "downward drags must not open info")
     }
 
+    /// Regression: fast back-to-back swipes used to leave a card spinning up the screen.
+    /// After a burst of flicks every decision lands once, and the card on top sits
+    /// upright in the middle of the deck.
+    @MainActor
+    func testRapidConsecutiveSwipesKeepTheDeckSteady() throws {
+        let (card, progress) = try startCulling()
+        let initial = remaining(progress)
+        XCTAssertGreaterThan(initial, 4, "seed at least five assets")
+        let rest = card.frame
+
+        card.swipeLeft(velocity: .fast)
+        card.swipeRight(velocity: .fast)
+        card.swipeLeft(velocity: .fast)
+        card.swipeRight(velocity: .fast)
+        waitFor(progress, value: "\(initial - 4)")
+        Thread.sleep(forTimeInterval: 0.6)   // let the thrown cards finish flying
+
+        let settled = card.frame
+        XCTAssertEqual(settled.midX, rest.midX, accuracy: 4, "top card is centred")
+        XCTAssertEqual(settled.midY, rest.midY, accuracy: 4, "top card hasn't drifted up or down")
+        XCTAssertEqual(settled.width, rest.width, accuracy: 4, "top card is upright (a tilt widens its frame)")
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "mediaCard").count, 1)
+
+        for _ in 0..<4 { app.buttons["undoButton"].tap() }
+        waitFor(progress, value: "\(initial)")
+    }
+
     @MainActor
     func testSwipeUpOpensInfo() throws {
         let (card, _) = try startCulling()
