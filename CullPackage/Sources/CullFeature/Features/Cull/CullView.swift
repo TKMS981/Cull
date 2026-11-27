@@ -14,6 +14,7 @@ struct CullView: View {
     @Environment(DecisionStore.self) private var store
     @Environment(\.displayScale) private var displayScale
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     init(filter: CullFilter, sort: CullSort = .oldest, includeKept: Bool) {
         self.filter = filter
@@ -99,6 +100,15 @@ struct CullView: View {
             }
         }
         .onDisappear { session?.tearDown() }
+        // Background: drop PhotoKit's image cache (the player is released by its card).
+        // Memory warning: drop it too, then re-warm just the next few cards.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { session?.resumeCaching() } else { session?.tearDown() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+            session?.tearDown()
+            if scenePhase == .active { session?.resumeCaching() }
+        }
         // Sound on → `.playback` (heard even in silent mode); otherwise mix quietly with other audio.
         .audioSessionAudible(!isMuted && (session?.current?.asset.hasAudio ?? false))
         .sensoryFeedback(trigger: feedback) { _, new in

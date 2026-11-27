@@ -15,6 +15,8 @@ enum StorageAnalyzer {
         progress(0, assets.count)
         let sizes = await AssetSizeReader.bytes(of: assets, progress: progress)
         guard !Task.isCancelled else { return nil }
+        // A full pass: sizes of assets that are gone can leave the cache.
+        AssetSizeReader.pruneCache(keeping: Set(assets.map(\.localIdentifier)))
         let items = zip(assets, sizes).map { asset, bytes in
             StorageItem(
                 id: asset.localIdentifier,
@@ -59,7 +61,7 @@ final class StorageModel {
                 self.progress = Progress(done: max(done, current.done), total: total)
             }
         }
-        task = Task {
+        task = Task(priority: .utility) {
             let report = await StorageAnalyzer.analyze(progress: update)
             // A cancelled (or superseded) run leaves the state to whoever replaced it.
             guard self.generation == generation else { return }
@@ -78,6 +80,9 @@ final class StorageModel {
         generation = nil
         progress = nil
     }
+
+    /// The report should be (re)made: none yet, or the library changed since.
+    var needsScan: Bool { report == nil || isStale }
 
     func libraryDidChange() {
         if report != nil { isStale = true }

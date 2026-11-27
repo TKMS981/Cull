@@ -11,11 +11,11 @@ final class CullUITests: XCTestCase {
     }
 
     @MainActor
-    private func launch(extraArguments: [String] = [], pinSortOrder: Bool = true) {
+    private func launch(extraArguments: [String] = [], pinSortOrder: Bool = true, sortOrder: String = "newest") {
         app = XCUIApplication()
         // The argument domain overrides the persisted sort order, so a test that changes
         // it can't leak into the others (which expect the default, newest first).
-        let sort = pinSortOrder ? ["-sortOrder", "newest"] : []
+        let sort = pinSortOrder ? ["-sortOrder", sortOrder] : []
         app.launchArguments = ["-UITestInMemoryStore"] + sort + extraArguments
         addUIInterruptionMonitor(withDescription: "Photos permission") { alert in
             for label in ["Allow Full Access", "フルアクセスを許可", "Allow Access to All Photos", "すべての写真へのアクセスを許可"] {
@@ -28,8 +28,8 @@ final class CullUITests: XCTestCase {
     }
 
     @MainActor
-    private func startCulling(attribute: String? = nil, extraArguments: [String] = []) throws -> (card: XCUIElement, progress: XCUIElement) {
-        launch(extraArguments: extraArguments)
+    private func startCulling(attribute: String? = nil, extraArguments: [String] = [], sortOrder: String = "newest") throws -> (card: XCUIElement, progress: XCUIElement) {
+        launch(extraArguments: extraArguments, sortOrder: sortOrder)
         let request = app.buttons["requestAccessButton"]
         if request.waitForExistence(timeout: 2) {
             request.tap()
@@ -544,6 +544,31 @@ final class CullUITests: XCTestCase {
         let trash = app.buttons["setupTrashButton"]
         expectation(for: NSPredicate(format: "value BEGINSWITH '1'"), evaluatedWith: trash)
         waitForExpectations(timeout: 5)
+    }
+
+    /// The info sheet never loads a map (a network request that reveals the place) until
+    /// the user asks for it; the coordinates are shown as text either way.
+    @MainActor
+    func testInfoMapLoadsOnlyOnRequest() throws {
+        // Oldest first: the simulator's stock sample photos, which carry GPS.
+        let (card, _) = try startCulling(sortOrder: "oldest")
+        let showMap = app.buttons["showMapButton"]
+        // Find a card with a location; keep the ones without.
+        for _ in 0..<6 {
+            card.swipeUp()
+            let sheet = app.descendants(matching: .any)["infoSheet"]
+            XCTAssertTrue(sheet.waitForExistence(timeout: 5))
+            // The location section sits at the bottom of the sheet.
+            for _ in 0..<2 where !showMap.exists { sheet.swipeUp() }
+            if showMap.waitForExistence(timeout: 2) { break }
+            app.swipeDown(velocity: .fast)   // dismiss the sheet
+            _ = app.buttons["keepButton"].waitForExistence(timeout: 3)
+            app.buttons["keepButton"].tap()
+        }
+        XCTAssertTrue(showMap.exists, "a photo with a location in the library")
+        XCTAssertFalse(app.descendants(matching: .any)["infoMap"].exists, "no map until asked")
+        showMap.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["infoMap"].waitForExistence(timeout: 5))
     }
 
     @MainActor

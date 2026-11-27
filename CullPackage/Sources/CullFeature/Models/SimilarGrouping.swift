@@ -117,7 +117,7 @@ nonisolated enum SimilarGrouping {
 /// A tiny colour thumbnail (16×16 RGB) compared pixel by pixel: the fallback when a
 /// Vision feature print isn't available (e.g. the model can't run on this device).
 /// Coarser than a feature print, but it reliably catches near-duplicates.
-nonisolated struct ImageSignature: Sendable, Equatable {
+nonisolated struct ImageSignature: Codable, Sendable, Equatable {
     static let side = 16
     /// RGB values 0…1, row by row.
     let values: [Float]

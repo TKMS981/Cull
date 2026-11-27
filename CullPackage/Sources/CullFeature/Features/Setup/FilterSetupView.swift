@@ -30,6 +30,7 @@ struct FilterSetupView: View {
     @Environment(DecisionStore.self) private var store
 
     @AppStorage("includeKept") private var includeKept = false
+    @AppStorage(ImageLoader.iCloudDownloadKey) private var allowsICloudDownload = true
     @AppStorage("sortOrder") private var sort: CullSort = .newest
     @State private var albumID: String?
     @State private var useDateRange = false
@@ -352,6 +353,8 @@ struct FilterSetupView: View {
         Section {
             Toggle("整理済み（保持）の写真も再表示する", isOn: $includeKept)
                 .accessibilityIdentifier("includeKeptToggle")
+            Toggle("iCloud から元の写真をダウンロード", isOn: $allowsICloudDownload)
+                .accessibilityIdentifier("iCloudDownloadToggle")
             Button {
                 path.append(.kept)
             } label: {
@@ -375,7 +378,10 @@ struct FilterSetupView: View {
         } header: {
             Text("設定")
         } footer: {
-            Text("保持済み: \(store.keptIDs.count) 件")
+            VStack(alignment: .leading, spacing: 4) {
+                Text("保持済み: \(store.keptIDs.count) 件")
+                Text("iCloud をオフにすると、端末にない写真は低解像度のまま表示します。解析（容量・似た写真）は常に端末内のデータだけで行います。")
+            }
         }
     }
 

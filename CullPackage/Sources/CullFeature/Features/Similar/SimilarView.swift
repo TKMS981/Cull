@@ -42,6 +42,8 @@ struct SimilarView: View {
     @Environment(PhotoLibraryService.self) private var library
     @Environment(DecisionStore.self) private var store
     @AppStorage("includeKept") private var includeKept = false
+    @Environment(PaceMonitor.self) private var paceMonitor
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var period: SimilarPeriod = .month
     @State private var startDate = Calendar.current.date(byAdding: .month, value: -1, to: .now) ?? .now
@@ -86,6 +88,12 @@ struct SimilarView: View {
             let count = await SimilarPhotoFinder.photoCount(filter: filter, excluding: excluded)
             guard !Task.isCancelled, filter == self.filter else { return }
             photoCount = count
+        }
+        // Closing the screen cancels the scan immediately. Going to the background
+        // pauses it; it continues on return (analysed photos come from the cache).
+        .onDisappear { model.cancel() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.resumeIfSuspended() } else { model.suspend() }
         }
         .onChange(of: excluded) { _, excluded in
             model.prune { !excluded.contains($0) }
@@ -168,6 +176,7 @@ struct SimilarView: View {
                     }
                 }
                 ProgressView(value: progress.fraction)
+                PaceNote(pace: paceMonitor.pace)
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("similarProgress")
@@ -251,6 +260,28 @@ private struct SimilarGroupRow: View {
         .accessibilityElement(children: .combine)
         .task(id: group.assetIDs) {
             assets = library.assets(withIDs: Array(group.assetIDs.prefix(Self.shown)))
+        }
+    }
+}
+
+/// Tells the user why a scan runs slower or has stopped.
+struct PaceNote: View {
+    let pace: WorkPace
+
+    var body: some View {
+        switch pace {
+        case .normal:
+            EmptyView()
+        case .reduced:
+            Label("省電力のため、ゆっくり解析しています", systemImage: "leaf")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("paceReduced")
+        case .paused:
+            Label("端末が熱くなっているため一時停止中です。冷えると再開します", systemImage: "thermometer.high")
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .accessibilityIdentifier("pacePaused")
         }
     }
 }

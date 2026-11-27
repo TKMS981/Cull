@@ -226,6 +226,28 @@
         }
       }
     },
+    "iCloud から元の写真をダウンロード" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download Originals from iCloud"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "iCloud をオフにすると、端末にない写真は低解像度のまま表示します。解析（容量・似た写真）は常に端末内のデータだけで行います。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With this off, photos that aren’t on this iPhone are shown at low resolution. Analysis (storage, similar photos) always uses only what’s on this iPhone."
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "「保持」にした %lld 件が再び整理対象になります。ゴミ箱の内容は変わりません。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1208,6 +1230,28 @@
         }
       }
     },
+    "地図で表示" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show on Map"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "地図は Apple マップから読み込むため、表示するときだけ通信します。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The map is loaded from Apple Maps, so it connects to the internet only when you show it."
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "大きいファイル" : {
       "localizations" : {
         "en" : {
@@ -1659,6 +1703,17 @@
       },
       "extractionState" : "manual"
     },
+    "省電力のため、ゆっくり解析しています" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyzing slowly to save power"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "種類" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1676,6 +1731,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "By Type"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "端末が熱くなっているため一時停止中です。冷えると再開します" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paused while your iPhone is warm. It will resume when it cools down."
           }
         }
       },

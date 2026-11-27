@@ -7,6 +7,9 @@ struct AssetInfoSheet: View {
     let asset: PHAsset
 
     @State private var info: AssetInfo?
+    /// The map is loaded only on request: its tiles come from Apple Maps over the
+    /// network, which would reveal roughly where the photo was taken.
+    @State private var showsMap = false
 
     var body: some View {
         NavigationStack {
@@ -25,6 +28,7 @@ struct AssetInfoSheet: View {
             .accessibilityIdentifier("infoSheet")
         }
         .task(id: asset.localIdentifier) {
+            showsMap = false
             info = MetadataReader.basicInfo(for: asset)
             info = await MetadataReader.info(for: asset)
         }
@@ -100,16 +104,28 @@ struct AssetInfoSheet: View {
     @ViewBuilder
     private func locationSection(_ info: AssetInfo) -> some View {
         if let coordinate = info.coordinate {
-            Section("撮影地") {
-                Map(initialPosition: .region(MKCoordinateRegion(center: coordinate, latitudinalMeters: 1500, longitudinalMeters: 1500))) {
-                    Marker("", coordinate: coordinate)
+            Section {
+                if showsMap {
+                    Map(initialPosition: .region(MKCoordinateRegion(center: coordinate, latitudinalMeters: 1500, longitudinalMeters: 1500))) {
+                        Marker("", coordinate: coordinate)
+                    }
+                    .frame(height: 180)
+                    .listRowInsets(EdgeInsets())
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("infoMap")
+                } else {
+                    Button("地図で表示", systemImage: "map") { showsMap = true }
+                        .accessibilityIdentifier("showMapButton")
                 }
-                .frame(height: 180)
-                .listRowInsets(EdgeInsets())
-                .allowsHitTesting(false)
                 Text(verbatim: String(format: "%.5f, %.5f", coordinate.latitude, coordinate.longitude))
                     .font(.footnote.monospacedDigit())
                     .foregroundStyle(.secondary)
+            } header: {
+                Text("撮影地")
+            } footer: {
+                if !showsMap {
+                    Text("地図は Apple マップから読み込むため、表示するときだけ通信します。")
+                }
             }
         }
     }

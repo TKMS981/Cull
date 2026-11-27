@@ -55,7 +55,7 @@ final class ImageLoader: @unchecked Sendable {
         AsyncStream { continuation in
             let options = PHLivePhotoRequestOptions()
             options.deliveryMode = .opportunistic
-            options.isNetworkAccessAllowed = true
+            options.isNetworkAccessAllowed = Self.allowsICloudDownload
             let requestID = manager.requestLivePhoto(for: asset, targetSize: targetSize, contentMode: .aspectFit, options: options) { livePhoto, info in
                 let degraded = (info?[PHImageResultIsDegradedKey] as? Bool) ?? false
                 if let livePhoto { continuation.yield(livePhoto) }
@@ -69,7 +69,7 @@ final class ImageLoader: @unchecked Sendable {
     nonisolated func videoAsset(for asset: PHAsset) async -> AVAsset? {
         let options = PHVideoRequestOptions()
         options.deliveryMode = .automatic
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = Self.allowsICloudDownload
         let box = await withCheckedContinuation { (continuation: CheckedContinuation<AVAssetBox, Never>) in
             manager.requestAVAsset(forVideo: asset, options: options) { avAsset, _, _ in
                 continuation.resume(returning: AVAssetBox(asset: avAsset))
@@ -87,7 +87,7 @@ final class ImageLoader: @unchecked Sendable {
     /// Original image bytes, used for EXIF parsing and file size.
     nonisolated func imageData(for asset: PHAsset) async -> Data? {
         let options = PHImageRequestOptions()
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = Self.allowsICloudDownload
         options.version = .current
         return await withCheckedContinuation { continuation in
             manager.requestImageDataAndOrientation(for: asset, options: options) { data, _, _, _ in
@@ -98,11 +98,20 @@ final class ImageLoader: @unchecked Sendable {
 
     // MARK: Options
 
+    nonisolated static let iCloudDownloadKey = "allowICloudDownload"
+
+    /// Whether PhotoKit may fetch originals from the user's iCloud Photos for display,
+    /// playback and EXIF (on by default; the app itself never makes network requests).
+    /// Analysis — sizes, similar photos — never downloads either way.
+    nonisolated static var allowsICloudDownload: Bool {
+        UserDefaults.standard.object(forKey: iCloudDownloadKey) as? Bool ?? true
+    }
+
     nonisolated private static var cardOptions: PHImageRequestOptions {
         let options = PHImageRequestOptions()
         options.deliveryMode = .opportunistic
         options.resizeMode = .fast
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = Self.allowsICloudDownload
         return options
     }
 
@@ -110,7 +119,7 @@ final class ImageLoader: @unchecked Sendable {
         let options = PHImageRequestOptions()
         options.deliveryMode = .highQualityFormat
         options.resizeMode = .exact
-        options.isNetworkAccessAllowed = true
+        options.isNetworkAccessAllowed = Self.allowsICloudDownload
         return options
     }
 }

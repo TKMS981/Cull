@@ -684,3 +684,72 @@ struct ImageSignatureTests {
         #expect(ImageSignature(values: [0, 0, 0]).distance(to: ImageSignature(values: [])) == 1)
     }
 }
+
+@Suite("Resource governor")
+struct ResourceGovernorTests {
+    @Test func paceFollowsPowerAndHeat() {
+        #expect(ResourceGovernor.pace(lowPower: false, thermal: .nominal) == .normal)
+        #expect(ResourceGovernor.pace(lowPower: true, thermal: .nominal) == .reduced)
+        #expect(ResourceGovernor.pace(lowPower: false, thermal: .fair) == .reduced)
+        #expect(ResourceGovernor.pace(lowPower: false, thermal: .serious) == .paused)
+        #expect(ResourceGovernor.pace(lowPower: true, thermal: .critical) == .paused)
+    }
+
+    @Test func concurrencyIsCappedAndHalvedAndStopped() {
+        #expect(ResourceGovernor.concurrency(for: .normal) == ResourceGovernor.maxConcurrency)
+        #expect(ResourceGovernor.maxConcurrency <= 6)
+        #expect(ResourceGovernor.concurrency(for: .reduced) == ResourceGovernor.maxConcurrency / 2)
+        #expect(ResourceGovernor.concurrency(for: .reduced, limit: 1) == 1)
+        #expect(ResourceGovernor.concurrency(for: .paused) == 0)
+    }
+}
+
+@Suite("Disk cache")
+struct DiskCacheTests {
+    private func makeDirectory() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appending(path: "DiskCacheTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    @Test func reusesUntilTheAssetIsModified() throws {
+        let cache = DiskCache<Int>(fileName: "c.plist", capacity: 10, directory: try makeDirectory())
+        let day1 = Date(timeIntervalSinceReferenceDate: 1), day2 = Date(timeIntervalSinceReferenceDate: 2)
+        #expect(cache.value(for: "a", modified: day1) == nil)
+        cache.store(42, for: "a", modified: day1)
+        #expect(cache.value(for: "a", modified: day1) == 42)
+        #expect(cache.value(for: "a", modified: day2) == nil, "edited since: measure again")
+        cache.store(7, for: "b", modified: nil)
+        #expect(cache.value(for: "b", modified: nil) == 7)
+    }
+
+    @Test func persistsAcrossInstancesAndPrunes() throws {
+        let directory = try makeDirectory()
+        let first = DiskCache<String>(fileName: "c.plist", capacity: 10, directory: directory)
+        first.store("x", for: "a", modified: nil)
+        first.store("y", for: "b", modified: nil)
+        first.persist()
+        let second = DiskCache<String>(fileName: "c.plist", capacity: 10, directory: directory)
+        #expect(second.value(for: "a", modified: nil) == "x")
+        second.retain(only: ["b"])
+        second.persist()
+        let third = DiskCache<String>(fileName: "c.plist", capacity: 10, directory: directory)
+        #expect(third.value(for: "a", modified: nil) == nil, "deleted assets leave the cache")
+        #expect(third.value(for: "b", modified: nil) == "y")
+        third.removeAll()
+        #expect(!FileManager.default.fileExists(atPath: directory.appending(path: "c.plist").path()))
+    }
+
+    @Test func capacityIsEnforcedOnWrite() throws {
+        let cache = DiskCache<Int>(fileName: "c.plist", capacity: 3, directory: try makeDirectory())
+        for i in 0..<10 { cache.store(i, for: "id\(i)", modified: nil) }
+        cache.persist()
+        #expect(cache.count == 3)
+    }
+
+    @Test func signaturesRoundTrip() throws {
+        let signature = ImageSignature(values: [0, 0.5, 1])
+        let data = try PropertyListEncoder().encode(signature)
+        #expect(try PropertyListDecoder().decode(ImageSignature.self, from: data) == signature)
+    }
+}

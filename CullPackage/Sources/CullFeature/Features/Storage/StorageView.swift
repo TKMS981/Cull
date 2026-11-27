@@ -8,6 +8,8 @@ struct StorageView: View {
 
     @Environment(StorageModel.self) private var model
     @Environment(PhotoLibraryService.self) private var library
+    @Environment(PaceMonitor.self) private var paceMonitor
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage("includeKept") private var includeKept = false
 
     /// Thumbnails for the biggest-files list.
@@ -44,10 +46,20 @@ struct StorageView: View {
             }
         }
         .onAppear {
-            if model.report == nil || model.isStale { model.scan() }
+            if model.needsScan { model.scan() }
+        }
+        // Leaving the screen or the app stops the scan at once; coming back picks it up
+        // again, and everything measured so far comes from the cache.
+        .onDisappear { model.cancel() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                if model.needsScan { model.scan() }
+            } else {
+                model.cancel()
+            }
         }
         .onChange(of: model.isStale) { _, stale in
-            if stale { model.scan() }
+            if stale, scenePhase == .active { model.scan() }
         }
         .task(id: model.report?.largest.map(\.id)) {
             guard let ids = model.report?.largest.map(\.id) else { return }
@@ -71,6 +83,7 @@ struct StorageView: View {
                     }
                 }
                 ProgressView(value: progress.fraction)
+                PaceNote(pace: paceMonitor.pace)
                 Text("一度計算したサイズは保存され、次回からすばやく表示されます。")
                     .font(.caption)
                     .foregroundStyle(.secondary)

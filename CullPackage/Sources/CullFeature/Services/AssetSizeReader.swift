@@ -14,16 +14,16 @@ enum AssetSizeReader {
         PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil).enumerateObjects { asset, _, _ in
             if let size = cachedBytes(of: asset) { sizes[asset.localIdentifier] = size }
         }
-        persistCache()
+        cache.persist()
         return sizes
     }
 
     /// Sizes for `assets`, in the same order (`nil` where PhotoKit doesn't report one).
     ///
-    /// Built for 10k-item libraries: runs off the main actor, splits the work across
-    /// the cores, reuses sizes measured before (this launch or, via the on-disk
-    /// cache, an earlier one), and reports how many are done
-    /// every `progressStride` items.
+    /// Built for 10k-item libraries: runs off the main actor on at most
+    /// `ResourceGovernor.maxConcurrency` workers (half in Low Power Mode), pauses while
+    /// the device is hot, reuses sizes measured before (on-disk cache, re-measured
+    /// only for new or edited assets) and reports progress every `progressStride` items.
     @concurrent
     nonisolated static func bytes(
         of assets: [PHAsset],
@@ -33,7 +33,8 @@ enum AssetSizeReader {
         let total = assets.count
         guard total > 0 else { return [] }
         let box = AssetList(assets: assets)
-        let workers = max(1, min(ProcessInfo.processInfo.activeProcessorCount, total / 64 + 1))
+        let limit = max(1, ResourceGovernor.concurrency(for: ResourceGovernor.currentPace))
+        let workers = max(1, min(limit, total / 64 + 1))
         let chunk = (total + workers - 1) / workers
         let done = Atomic<Int>(0)
 
@@ -44,6 +45,8 @@ enum AssetSizeReader {
                     var sizes: [Int64?] = []
                     sizes.reserveCapacity(range.count)
                     for index in range {
+                        // Check the device every so often (cheap); stop on cancel.
+                        if index % 64 == 0, !(await ResourceGovernor.waitUntilAllowed()) { break }
                         if Task.isCancelled { break }
                         sizes.append(cachedBytes(of: box.assets[index]))
                         let finished = done.add(1, ordering: .relaxed).newValue
@@ -56,7 +59,7 @@ enum AssetSizeReader {
             for await (start, sizes) in group {
                 for (offset, size) in sizes.enumerated() { result[start + offset] = size }
             }
-            persistCache()
+            cache.persist()
             return result
         }
     }
@@ -66,56 +69,28 @@ enum AssetSizeReader {
         let assets: [PHAsset]
     }
 
-    private nonisolated struct CacheEntry: Codable {
-        let modified: Date?
+    /// `nil` bytes are cached too: "PhotoKit gives no size" needn't be asked again.
+    nonisolated struct CachedSize: Codable, Sendable {
         let bytes: Int64?
     }
 
-    /// Sizes measured before, kept across launches in the Caches directory (the OS may
-    /// purge it; it's only a speed-up). Keyed by modification date, so an edited asset
-    /// is measured again.
-    private nonisolated struct SizeCache {
-        var entries: [String: CacheEntry]?
-        var isDirty = false
-    }
-
-    private nonisolated static let cache = Mutex(SizeCache())
-
-    nonisolated static var cacheURL: URL {
-        URL.cachesDirectory.appending(path: "AssetSizes.json")
-    }
+    nonisolated static let cache = DiskCache<CachedSize>(fileName: "AssetSizes.plist", capacity: 200_000)
 
     nonisolated static func cachedBytes(of asset: PHAsset) -> Int64? {
         let id = asset.localIdentifier
         let modified = asset.modificationDate
-        let hit = cache.withLock { cache -> CacheEntry? in
-            if cache.entries == nil { cache.entries = loadCache() }
-            return cache.entries?[id]
-        }
-        if let hit, hit.modified == modified { return hit.bytes }
-        let measured = bytes(of: asset)
-        cache.withLock {
-            $0.entries?[id] = CacheEntry(modified: modified, bytes: measured)
-            $0.isDirty = true
-        }
+        if let hit = cache.value(for: id, modified: modified) { return hit.bytes }
+        // Resource lookups create autoreleased objects; drain them per asset so a 10k
+        // pass doesn't build up memory on a worker thread.
+        let measured = autoreleasepool { bytes(of: asset) }
+        cache.store(CachedSize(bytes: measured), for: id, modified: modified)
         return measured
     }
 
-    /// Writes new measurements to disk (after a bulk read, not per item).
-    nonisolated static func persistCache() {
-        let snapshot = cache.withLock { cache -> [String: CacheEntry]? in
-            guard cache.isDirty else { return nil }
-            cache.isDirty = false
-            return cache.entries
-        }
-        guard let snapshot, let data = try? JSONEncoder().encode(snapshot) else { return }
-        try? data.write(to: cacheURL, options: .atomic)
-    }
-
-    private nonisolated static func loadCache() -> [String: CacheEntry] {
-        guard let data = try? Data(contentsOf: cacheURL),
-              let entries = try? JSONDecoder().decode([String: CacheEntry].self, from: data) else { return [:] }
-        return entries
+    /// Forget sizes of assets that are gone (after a pass over the whole library).
+    nonisolated static func pruneCache(keeping ids: Set<String>) {
+        cache.retain(only: ids)
+        cache.persist()
     }
 
     /// `PHAssetResource` has no public size API; `fileSize` is a KVC-readable property.

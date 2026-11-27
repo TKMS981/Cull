@@ -26,6 +26,9 @@ final class VideoPlayback {
     @ObservationIgnored private var isSeeking = false
     @ObservationIgnored private var pendingSeek: Double?
 
+    /// Where to pick up after `suspend()` (the app went to the background).
+    @ObservationIgnored private var resumeAt: Double?
+
     func start(asset: PHAsset) async {
         guard player == nil else { return }
         duration = asset.duration
@@ -44,7 +47,20 @@ final class VideoPlayback {
             }
         }
         player = queuePlayer
+        if let resumeAt, resumeAt > 0 {
+            queuePlayer.seek(to: CMTime(seconds: resumeAt, preferredTimescale: 600), completionHandler: { _ in })
+            currentTime = resumeAt
+        }
+        resumeAt = nil
         queuePlayer.play()
+    }
+
+    /// Releases the player (and its decoder / audio session use) but remembers the
+    /// position, for when the app goes to the background.
+    func suspend() {
+        let position = currentTime
+        stop()
+        resumeAt = position
     }
 
     func stop() {

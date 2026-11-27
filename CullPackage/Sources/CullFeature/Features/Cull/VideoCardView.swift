@@ -9,6 +9,7 @@ struct VideoCardView: View {
     let asset: PHAsset
     let isActive: Bool
     @Bindable var playback: VideoPlayback
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -18,12 +19,20 @@ struct VideoCardView: View {
                     .opacity(playback.isReady ? 1 : 0)
             }
         }
-        .task(id: isActive) {
+        // The player only exists while this is the top card and the app is in front:
+        // in the background it's released (position kept) instead of left paused.
+        .task(id: PlayKey(isActive: isActive, isForeground: scenePhase == .active)) {
             guard isActive else { return playback.stop() }
+            guard scenePhase == .active else { return playback.suspend() }
             await playback.start(asset: asset)
         }
         .onDisappear { playback.stop() }
     }
+}
+
+private struct PlayKey: Equatable {
+    let isActive: Bool
+    let isForeground: Bool
 }
 
 /// Bridges `AVPlayerLayer` because SwiftUI's `VideoPlayer` always installs

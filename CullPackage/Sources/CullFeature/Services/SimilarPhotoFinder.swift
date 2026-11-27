@@ -74,9 +74,8 @@ enum SimilarPhotoFinder {
         return assets
     }
 
-    /// Vision runs a handful of requests at once; more just queues on the same engine.
-    nonisolated static let maxConcurrentPrints = 4
-
+    /// Analyses run a few at a time (`ResourceGovernor`: 4, 2 in Low Power Mode, none
+    /// while the device is hot), so memory stays flat and the device stays cool.
     nonisolated private static func analyze(
         _ indices: [Int],
         of box: AssetBox,
@@ -84,29 +83,42 @@ enum SimilarPhotoFinder {
     ) async -> [Int: Analysis] {
         let total = indices.count
         return await withTaskGroup(of: (Int, Analysis?).self) { group in
-            var prints: [Int: Analysis] = [:]
+            var results: [Int: Analysis] = [:]
             var next = indices.makeIterator()
             var done = 0
-            func addNext() -> Bool {
-                guard !Task.isCancelled, let index = next.next() else { return false }
-                group.addTask { (index, await analysis(of: box.assets[index])) }
-                return true
-            }
-            for _ in 0..<maxConcurrentPrints where !addNext() { break }
-            while let (index, print) = await group.next() {
-                prints[index] = print
+            var inFlight = 0
+            var exhausted = false
+            while true {
+                // Top up to what the device allows right now.
+                while !exhausted, !Task.isCancelled {
+                    let allowed = ResourceGovernor.concurrency(for: ResourceGovernor.currentPace)
+                    if allowed == 0 {
+                        if inFlight > 0 { break }      // let running work finish first
+                        if !(await ResourceGovernor.waitUntilAllowed()) { exhausted = true }
+                        continue
+                    }
+                    guard inFlight < allowed else { break }
+                    guard let index = next.next() else {
+                        exhausted = true
+                        break
+                    }
+                    group.addTask(priority: .utility) { (index, await analysis(of: box.assets[index])) }
+                    inFlight += 1
+                }
+                guard let (index, analysis) = await group.next() else { break }
+                inFlight -= 1
+                results[index] = analysis
                 done += 1
                 if done % 10 == 0 || done == total { progress(done, total) }
-                _ = addNext()
             }
-            return prints
+            cache.persist()
+            return results
         }
     }
 
     /// What one photo is compared by: its Vision feature print, plus a pixel signature
-    /// used when either side has no usable print.
-    nonisolated struct Analysis: Sendable {
-        let modified: Date?
+    /// used when either side has no usable print. Derived numbers only (no pixels).
+    nonisolated struct Analysis: Codable, Sendable {
         let print: FeaturePrintObservation?
         let signature: ImageSignature
 
@@ -118,21 +130,31 @@ enum SimilarPhotoFinder {
         }
     }
 
-    /// Analyses made this launch, so rescanning (another level, an overlapping range)
-    /// only looks at new photos.
-    private nonisolated static let cache = Mutex<[String: Analysis]>([:])
+    /// Analyses kept on disk, so a rescan (another level, an overlapping range, the
+    /// next launch) only analyses new or edited photos.
+    nonisolated static let cache = DiskCache<Analysis>(fileName: "SimilarAnalyses.plist", capacity: 20_000)
+
+    /// Longest side of the thumbnail analysed. Vision scales its input down to a few
+    /// hundred pixels anyway, so a full-resolution decode would only cost memory.
+    nonisolated static let thumbnailSide: CGFloat = 300
 
     nonisolated static func analysis(of asset: PHAsset) async -> Analysis? {
         let id = asset.localIdentifier
         let modified = asset.modificationDate
-        if let hit = cache.withLock({ $0[id] }), hit.modified == modified { return hit }
-        guard let (image, orientation) = thumbnail(for: asset), let signature = ImageSignature(image: image) else { return nil }
+        if let hit = cache.value(for: id, modified: modified) { return hit }
+        // Decode and signature inside a pool: the UIImage and PhotoKit's temporaries
+        // are released per photo instead of piling up across the scan.
+        let prepared = autoreleasepool { () -> (CGImage, CGImagePropertyOrientation, ImageSignature)? in
+            guard let (image, orientation) = thumbnail(for: asset), let signature = ImageSignature(image: image) else { return nil }
+            return (image, orientation, signature)
+        }
+        guard let (image, orientation, signature) = prepared else { return nil }
         let print = try? await GenerateImageFeaturePrintRequest().perform(on: image, orientation: orientation)
         // No print where the model can't run (the simulator fails, or returns all
         // zeros, which would make every photo "identical"): use the signature instead.
         let usable = print.flatMap { $0.data.contains { $0 != 0 } ? $0 : nil }
-        let analysis = Analysis(modified: modified, print: usable, signature: signature)
-        cache.withLock { $0[id] = analysis }
+        let analysis = Analysis(print: usable, signature: signature)
+        cache.store(analysis, for: id, modified: modified)
         return analysis
     }
 
@@ -146,7 +168,7 @@ enum SimilarPhotoFinder {
         options.isNetworkAccessAllowed = false
         let result = Mutex<UIImage?>(nil)
         PHImageManager.default().requestImage(
-            for: asset, targetSize: CGSize(width: 360, height: 360), contentMode: .aspectFit, options: options
+            for: asset, targetSize: CGSize(width: thumbnailSide, height: thumbnailSide), contentMode: .aspectFit, options: options
         ) { image, _ in
             result.withLock { $0 = image }
         }
@@ -208,16 +230,41 @@ final class SimilarScanModel {
                 self.progress = Progress(done: max(done, current.done), total: total)
             }
         }
-        task = Task {
+        lastRequest = Request(filter: filter, excluded: excluded, level: level)
+        task = Task(priority: .utility) {
             let found = await SimilarPhotoFinder.scan(filter: filter, excluding: excluded, level: level, progress: update)
             guard self.generation == generation else { return }
             if let found {
                 groups = found
                 hasResults = true
+                lastRequest = nil
             }
             progress = nil
             task = nil
         }
+    }
+
+    private struct Request {
+        let filter: CullFilter
+        let excluded: Set<String>
+        let level: SimilarityLevel
+    }
+
+    /// The scan in flight (cleared when it finishes), so one interrupted by leaving the
+    /// app can pick up again; analysed photos come from the cache.
+    @ObservationIgnored private var lastRequest: Request?
+
+    /// The app went to the background: stop now, carry on when it's back.
+    func suspend() {
+        guard isScanning else { return }
+        let request = lastRequest
+        cancel()
+        lastRequest = request
+    }
+
+    func resumeIfSuspended() {
+        guard !isScanning, let request = lastRequest else { return }
+        scan(filter: request.filter, excluding: request.excluded, level: request.level)
     }
 
     func cancel() {
@@ -225,6 +272,7 @@ final class SimilarScanModel {
         task = nil
         generation = nil
         progress = nil
+        lastRequest = nil
     }
 
     /// Takes a group off the list once it's been sorted out (or items left the library).

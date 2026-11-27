@@ -9,6 +9,7 @@ public struct CullRootView: View {
     @State private var path: [Route] = []
     @State private var storage = StorageModel()
     @State private var similar = SimilarScanModel()
+    @State private var paceMonitor = PaceMonitor()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
 
@@ -90,8 +91,10 @@ public struct CullRootView: View {
         .environment(store)
         .environment(storage)
         .environment(similar)
-        .onChange(of: scenePhase) { _, phase in
+        .environment(paceMonitor)
+        .onChange(of: scenePhase, initial: true) { _, phase in
             if phase == .active { library.refreshStatus() }
+            if phase == .active { paceMonitor.start() } else { paceMonitor.stop() }
         }
     }
 

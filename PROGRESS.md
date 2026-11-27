@@ -105,9 +105,33 @@ _Last updated: 2026-11-27_
 - Seed script: adds a near-duplicate pair (`similar_1/2.jpg`, a second apart, 3 days ago). `make_exif_photo.swift` takes an optional seconds-ago argument.
 - Only public API in the new code, except the existing `PHAssetResource` `fileSize` KVC read (see Not verified).
 
+## Privacy / efficiency / battery pass (2026-11-27)
+- **Audit**:
+  - The app has no networking code and Vision runs on device.
+  - Network use found:
+    - The info-sheet map (MapKit tiles reveal roughly where a photo was taken).
+    - PhotoKit iCloud downloads (`isNetworkAccessAllowed = true`, display/EXIF only).
+  - No production logging. `assertionFailure` is debug-only, and the delete-error alert shows PhotoKit's message to the user only.
+  - The size cache was written without file protection.
+  - Size workers used every core. There was no autoreleasepool.
+  - Similar-photo analysis was cached in memory only.
+  - Scans kept running after their screen closed. Nothing reacted to Low Power Mode or heat.
+  - No background handling on the culling screen.
+- **Changes**:
+  - Map loads only on "地図で表示" (coordinates stay as text). New setting "iCloud から元の写真をダウンロード" (default on) controls every PhotoKit network flag; analysis never downloads.
+  - `DiskCache`: generic per-asset on-disk cache. Binary plist, file protection, modification-date keyed, capacity cap, pruned after a full library pass. Used for sizes (`AssetSizes.plist`) and similar-photo analyses (`SimilarAnalyses.plist`, Vision prints are `Codable`), so rescans and relaunches only analyse new or edited items.
+  - `ResourceGovernor` / `PaceMonitor`:
+    - `.utility` priority, 4 workers max (2 in Low Power Mode, or when `thermalState` is `.fair`).
+    - Paused while `.serious`/`.critical`, polling every 2 s, cancellable. The similar-photo scan re-reads the allowed concurrency before each item.
+    - The progress UI shows "省電力のため…" / "一時停止中…".
+  - Similar thumbnails are 300 px (was 360). Decode + signature, and size measurement, run inside `autoreleasepool` per item.
+  - Storage and similar scans cancel on `onDisappear` and when the app leaves the foreground. Storage restarts on return if needed; a similar scan interrupted by the background resumes (cached items are instant).
+  - Culling screen: background → stop `PHCachingImageManager` caching, video cards release `AVPlayer` (position restored on return); memory warning → drop the cache and re-warm the next few cards.
+- Still uses the non-public `fileSize` KVC key for sizes. It's guarded; when it's missing, sizes show as unknown and nothing is estimated. Decide before App Store submission.
+
 ## Verified
 - **Build**: `build_sim` / `build_run_sim` succeed with no warnings (Xcode 27.2, iPhone 18 Pro, iOS 27.2).
-- **Tests**: `test_sim` passes 83/83 (65 Swift Testing + 18 XCUITest) as of Phase B.
+- **Tests**: `test_sim` passes 90/90 (71 Swift Testing + 19 XCUITest) after the privacy/efficiency pass, which added governor, disk-cache and signature round-trip unit tests and a UI test for the opt-in map. Phase B was 83 tests (65 + 18).
   - Phase B added: storage report (one category per asset, totals, ranking, 10k under 1 s), similar grouping (time-window pairs, burst cap, union-find, best pick, periods, pruning), image signature, deletion totals (persist, survive resets) and selection-route unit tests. UI tests: storage → video row starts culling; similar scan finds the seeded pair, marks flip, apply sends one to Cull's trash.
   - Phase A (65/65 then: 49 Swift Testing + 16 XCUITest) added: deck throw/drag isolation, sort, skip, kept-list and Swift-side filter matching unit tests; UI tests for rapid swipes, largest-first, skip, the seek bar, the kept list and reset by attribute. The list below is the pre-Phase-A baseline.
   - 31 Swift Testing unit tests: queue/undo/counts, filter predicates, SwiftData store (including "in-place caches match a fresh reload"), filter presets (month boundaries, matching), swipe rules (axis lock, 1:1 tracking, threshold, throw-back, flick, vertical lock never decides, info).
@@ -169,5 +193,5 @@ _Last updated: 2026-11-27_
 
 ## Next time, start here
 1. `git pull`, then boot the simulator and run `Scripts/seed_simulator.sh` if the library was erased.
-2. In MobileBuildMCP, run `session_show_defaults`, then `test_sim`. The baseline is 83/83 passing. The similar-photos UI test needs the seeded `similar_1/2.jpg` pair: re-run the seed script, or `xcrun simctl addmedia` those two from `TestMedia/`.
+2. In MobileBuildMCP, run `session_show_defaults`, then `test_sim`. The baseline is 90/90 passing. The similar-photos UI test needs the seeded `similar_1/2.jpg` pair: re-run the seed script, or `xcrun simctl addmedia` those two from `TestMedia/`.
 3. On a device, check Phase B: similar-photo grouping and thresholds on real bursts, storage totals against Settings › Photos, and the space-freed total after a real delete. Then check Phase A: sound in silent mode, the fast-swipe fix, the seek bar and swipe-down skip (see Not verified). Then check the swipe feel and tune the `SwipeRules` constants if needed. Also check the cards with VoiceOver.
