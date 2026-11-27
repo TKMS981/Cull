@@ -41,7 +41,9 @@ final class CullUITests: XCTestCase {
         expectation(for: enabled, evaluatedWith: start)
         waitForExpectations(timeout: 10)
         if let attribute {
+            // Rows below the fold aren't materialised until scrolled to.
             let button = app.buttons["attribute.\(attribute)"]
+            for _ in 0..<5 where !(button.exists && button.isHittable) { app.collectionViews.firstMatch.swipeUp() }
             XCTAssertTrue(button.waitForExistence(timeout: 5))
             button.tap()
         }
