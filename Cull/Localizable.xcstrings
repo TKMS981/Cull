@@ -23,6 +23,17 @@
         }
       }
     },
+    "%lld グループ・%lld 枚" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld groups · %lld photos"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "%lld 件" : {
       "localizations" : {
         "en" : {
@@ -137,6 +148,29 @@
         }
       }
     },
+    "%lld 枚" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos"
+                }
+              }
+            }
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "Cull はライブラリの写真とビデオを1枚ずつ表示して整理します。削除は確認のうえ「最近削除した項目」に移動されます。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -215,6 +249,28 @@
         }
       }
     },
+    "おすすめ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "おすすめ以外をゴミ箱" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trash All but Best"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "お気に入り" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -225,6 +281,28 @@
           }
         }
       }
+    },
+    "このグループをスキップ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip This Group"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "この内容で整理" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "これまで合計 %@ 削減" : {
       "localizations" : {
@@ -270,6 +348,28 @@
         }
       }
     },
+    "すべて残す" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep All"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "すべて確認しました" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All Reviewed"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "すべて選択" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -292,12 +392,34 @@
       },
       "extractionState" : "manual"
     },
+    "ほぼ同じ写真のみ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Near-Duplicates Only"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "まとめて整理" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sort All"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "ゆるめ" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loose"
           }
         }
       },
@@ -379,6 +501,28 @@
           }
         }
       }
+    },
+    "グループ %lld / %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Group %lld of %lld"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "グループを開いて、残す写真とゴミ箱に送る写真を選びます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open a group to choose which photos to keep and which to send to the trash."
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "ゴミ箱" : {
       "extractionState" : "stale",
@@ -507,6 +651,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tap a type to sort it, largest first."
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "タップで「残す」と「ゴミ箱」を切り替えます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a photo to switch between Keep and Trash."
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "ダブルタップで切り替え" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-tap to switch"
           }
         }
       },
@@ -644,6 +810,17 @@
       },
       "extractionState" : "manual"
     },
+    "一括" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark All"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "一部の写真へのアクセスのみ許可されています" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -698,6 +875,50 @@
           }
         }
       }
+    },
+    "似た写真" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Similar Photos"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "似た写真のグループはもうありません。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are no more groups of similar photos."
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "似た写真は見つかりませんでした" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Similar Photos Found"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "似た写真を探す" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find Similar Photos"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "保持" : {
       "extractionState" : "stale",
@@ -854,6 +1075,29 @@
         }
       }
     },
+    "写真 %lld 枚" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photo"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld photos"
+                }
+              }
+            }
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "写真へのアクセス" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -876,12 +1120,34 @@
         }
       }
     },
+    "写真を解析中…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyzing Photos…"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "分析を開始" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Start Analysis"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "判定" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Match"
           }
         }
       },
@@ -1063,6 +1329,17 @@
         }
       }
     },
+    "拡大して見る" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View Larger"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "撮影地" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1073,6 +1350,17 @@
           }
         }
       }
+    },
+    "撮影時刻が近い写真どうしを、端末上で見た目を比べて判定します（写真は外部に送信されません）。未整理の写真のみが対象です。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos taken close together are compared by how they look, on this device (nothing is uploaded). Only unsorted photos are included."
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "撮影期間" : {
       "extractionState" : "stale",
@@ -1173,6 +1461,17 @@
         }
       }
     },
+    "期間" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Period"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "期間で絞り込む" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1183,6 +1482,28 @@
           }
         }
       }
+    },
+    "期間を広げるか、判定をゆるめて試してください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try a longer period or a looser match."
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "期間を指定" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "未整理 %lld 件" : {
       "extractionState" : "stale",
@@ -1228,6 +1549,17 @@
       },
       "extractionState" : "manual"
     },
+    "標準" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "機種" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1238,6 +1570,28 @@
           }
         }
       }
+    },
+    "残す" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "残す %lld 枚・ゴミ箱 %lld 枚" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep %lld · Trash %lld"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "残り %lld / %lld" : {
       "extractionState" : "stale",
@@ -1260,6 +1614,50 @@
           }
         }
       }
+    },
+    "直近1年" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Past Year"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "直近1週間" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Past Week"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "直近30日" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Past 30 Days"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "直近3か月" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Past 3 Months"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "種類" : {
       "extractionState" : "stale",
@@ -1315,6 +1713,17 @@
           }
         }
       }
+    },
+    "解析する範囲" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan Range"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "設定" : {
       "extractionState" : "stale",

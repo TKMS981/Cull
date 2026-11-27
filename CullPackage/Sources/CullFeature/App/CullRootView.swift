@@ -8,6 +8,7 @@ public struct CullRootView: View {
     @State private var store: DecisionStore
     @State private var path: [Route] = []
     @State private var storage = StorageModel()
+    @State private var similar = SimilarScanModel()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
 
@@ -48,7 +49,8 @@ public struct CullRootView: View {
                                 KeptView()
                             case .storage:
                                 StorageView(path: $path)
-
+                            case .similar:
+                                SimilarView()
                             }
                         }
                 }
@@ -87,6 +89,7 @@ public struct CullRootView: View {
         .environment(library)
         .environment(store)
         .environment(storage)
+        .environment(similar)
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { library.refreshStatus() }
         }

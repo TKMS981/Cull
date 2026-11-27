@@ -17,6 +17,15 @@ for i in {1..6}; do
   swift Scripts/make_exif_photo.swift "$WORK/p$i.png" "$OUT/photo_$i.jpg" "$i"
 done
 
+# A near-duplicate pair (same scene, shifted a little, a second apart, 3 days ago)
+# for the similar-photos scan.
+for j in 1 2; do
+  ffmpeg -loglevel error -y -f lavfi -i "color=c=purple:s=1200x1600" \
+    -vf "drawgrid=w=100:h=100:t=4:c=white@0.5,drawbox=x=$((270 + j*30)):y=$((480 + j*20)):w=400:h=400:c=yellow:t=fill" \
+    -frames:v 1 "$WORK/s$j.png"
+  swift Scripts/make_exif_photo.swift "$WORK/s$j.png" "$OUT/similar_$j.jpg" 1 $((259200 - j))
+done
+
 ffmpeg -loglevel error -y -f lavfi -i "testsrc2=s=1080x1920:d=5:r=30" -f lavfi -i "sine=frequency=440:duration=5" \
   -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest "$OUT/test_video.mp4"
 
@@ -25,6 +34,6 @@ ffmpeg -loglevel error -y -ss 1 -i "$WORK/clip.mp4" -frames:v 1 "$WORK/still.jpg
 swiftc -O -o "$WORK/mklive" Scripts/make_live_photo.swift 2>/dev/null
 "$WORK/mklive" "$WORK/still.jpg" "$WORK/clip.mp4" "$OUT/live_1.JPG" "$OUT/live_1.MOV"
 
-xcrun simctl addmedia "$UDID" "$OUT"/photo_*.jpg "$OUT/test_video.mp4" "$OUT/live_1.JPG" "$OUT/live_1.MOV"
+xcrun simctl addmedia "$UDID" "$OUT"/photo_*.jpg "$OUT"/similar_*.jpg "$OUT/test_video.mp4" "$OUT/live_1.JPG" "$OUT/live_1.MOV"
 xcrun simctl privacy "$UDID" grant photos com.example.Cull
 echo "Seeded $UDID"

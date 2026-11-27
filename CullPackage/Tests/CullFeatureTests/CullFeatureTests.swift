@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Photos
 import Testing
@@ -552,6 +553,70 @@ struct StorageReportTests {
     }
 }
 
+@Suite("Similar photo grouping")
+struct SimilarGroupingTests {
+    private let base = Date(timeIntervalSinceReferenceDate: 800_000_000)
+
+    @Test func onlyPhotosCloseInTimeAreCompared() {
+        let dates = [0, 10, 20, 1_000, 5_000, 5_100].map { base.addingTimeInterval($0) }
+        let pairs = SimilarGrouping.candidatePairs(dates: dates, window: 180).map { [$0.0, $0.1] }
+        #expect(pairs == [[0, 1], [1, 2], [0, 2], [4, 5]])
+        #expect(SimilarGrouping.indicesNeedingPrints(SimilarGrouping.candidatePairs(dates: dates, window: 180)) == [0, 1, 2, 4, 5],
+                "a photo with no neighbour in time is never analysed")
+    }
+
+    @Test func neighboursAreCappedInABurst() {
+        let burst = (0..<30).map { base.addingTimeInterval(Double($0) * 0.1) }
+        let pairs = SimilarGrouping.candidatePairs(dates: burst, window: 180, maxNeighbors: 4)
+        #expect(pairs.count == 0 + 1 + 2 + 3 + 4 * 26)
+        #expect(pairs.allSatisfy { $0.1 - $0.0 <= 4 })
+    }
+
+    @Test func matchesJoinIntoGroups() {
+        let groups = SimilarGrouping.groups(count: 7, edges: [(0, 1), (1, 2), (4, 5), (5, 4), (9, 1)])
+        #expect(groups == [[0, 1, 2], [4, 5]], "chained matches join; singletons and out-of-range edges dropped")
+        #expect(SimilarGrouping.groups(count: 3, edges: []).isEmpty)
+    }
+
+    @Test func suggestedKeepPrefersFavouriteThenResolution() {
+        typealias C = SimilarGrouping.Candidate
+        let early = base, late = base.addingTimeInterval(2)
+        #expect(SimilarGrouping.suggestedKeep([C(pixelCount: 12), C(isFavorite: true, pixelCount: 1), C(pixelCount: 48)]) == 1)
+        #expect(SimilarGrouping.suggestedKeep([C(pixelCount: 12), C(pixelCount: 48), C(pixelCount: 24)]) == 1)
+        #expect(SimilarGrouping.suggestedKeep([C(pixelCount: 12, bytes: 1), C(pixelCount: 12, bytes: 9)]) == 1)
+        #expect(SimilarGrouping.suggestedKeep([C(pixelCount: 12, creationDate: late), C(pixelCount: 12, creationDate: early)]) == 0)
+        #expect(SimilarGrouping.suggestedKeep([]) == nil)
+    }
+
+    @Test func levelsAreOrdered() {
+        #expect(SimilarityLevel.strict.threshold < SimilarityLevel.standard.threshold)
+        #expect(SimilarityLevel.standard.threshold < SimilarityLevel.loose.threshold)
+    }
+
+    @Test func periodsEndNowAndNeverCoverEverything() throws {
+        let now = base
+        for period in SimilarPeriod.allCases where period != .custom {
+            let range = try #require(period.range(endingAt: now))
+            #expect(range.upperBound == now)
+            #expect(now.timeIntervalSince(range.lowerBound) <= 366 * 86_400)
+        }
+        #expect(SimilarPeriod.custom.range(endingAt: now) == nil)
+    }
+
+    @Test func pruningDropsDecidedItemsAndTinyGroups() {
+        let model = SimilarScanModel(groups: [
+            SimilarGroup(assetIDs: ["a", "b", "c"], suggestedKeepID: "b", startDate: nil),
+            SimilarGroup(assetIDs: ["d", "e"], suggestedKeepID: "d", startDate: nil),
+        ])
+        #expect(model.photoCount == 5)
+        model.prune { !["b", "e"].contains($0) }
+        #expect(model.groups.map(\.assetIDs) == [["a", "c"]], "a group left with one photo goes away")
+        #expect(model.groups.first?.suggestedKeepID == "a", "suggestion moves off a decided photo")
+        model.remove(model.groups[0])
+        #expect(model.groups.isEmpty)
+    }
+}
+
 @Suite("Space freed", .serialized)
 struct SavingsTests {
     @Test func deletionsAddUpAndPersist() throws {
@@ -588,5 +653,34 @@ struct AssetSelectionTests {
         #expect(a != b)
         #expect(a == a)
         #expect(Route.cullSelection(a) == Route.cullSelection(a))
+    }
+}
+
+@Suite("Image signature fallback")
+struct ImageSignatureTests {
+    /// A 64×64 image: solid `background` with a white square at `square`.
+    private func image(background: (UInt8, UInt8, UInt8), square: CGRect) throws -> CGImage {
+        let context = try #require(CGContext(data: nil, width: 64, height: 64, bitsPerComponent: 8, bytesPerRow: 0,
+                                             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue))
+        context.setFillColor(red: CGFloat(background.0) / 255, green: CGFloat(background.1) / 255, blue: CGFloat(background.2) / 255, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: 64, height: 64))
+        context.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+        context.fill(square)
+        return try #require(context.makeImage())
+    }
+
+    @Test func nearDuplicatesAreCloseAndDifferentScenesAreNot() throws {
+        let a = try #require(ImageSignature(image: image(background: (120, 0, 160), square: CGRect(x: 16, y: 16, width: 24, height: 24))))
+        let shifted = try #require(ImageSignature(image: image(background: (120, 0, 160), square: CGRect(x: 18, y: 17, width: 24, height: 24))))
+        let other = try #require(ImageSignature(image: image(background: (10, 160, 40), square: CGRect(x: 40, y: 4, width: 20, height: 50))))
+        #expect(a.values.count == ImageSignature.side * ImageSignature.side * 3)
+        #expect(a.distance(to: a) == 0)
+        #expect(a.distance(to: shifted) <= SimilarityLevel.strict.signatureThreshold)
+        #expect(a.distance(to: other) > SimilarityLevel.loose.signatureThreshold)
+        #expect(a.distance(to: shifted) == shifted.distance(to: a))
+    }
+
+    @Test func mismatchedSignaturesAreFarApart() {
+        #expect(ImageSignature(values: [0, 0, 0]).distance(to: ImageSignature(values: [])) == 1)
     }
 }

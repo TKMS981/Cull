@@ -1,4 +1,5 @@
-// Usage: swift Scripts/make_exif_photo.swift in.png out.jpg <index>  (adds sample camera EXIF + GPS)
+// Usage: swift Scripts/make_exif_photo.swift in.png out.jpg <index> [seconds-ago]  (adds sample camera EXIF + GPS)
+// Taken 20 × index days ago unless seconds-ago is given.
 
 import Foundation
 import ImageIO
@@ -10,7 +11,8 @@ let s = CGImageSourceCreateWithURL(src as CFURL, nil)!
 let img = CGImageSourceCreateImageAtIndex(s, 0, nil)!
 let d = CGImageDestinationCreateWithURL(dst as CFURL, UTType.jpeg.identifier as CFString, 1, nil)!
 let f = DateFormatter(); f.dateFormat = "yyyy:MM:dd HH:mm:ss"
-let date = f.string(from: Date(timeIntervalSinceNow: Double(-86400 * 20 * idx)))
+let secondsAgo = args.count > 4 ? Double(args[4])! : Double(86400 * 20 * idx)
+let date = f.string(from: Date(timeIntervalSinceNow: -secondsAgo))
 let props: [CFString: Any] = [
   kCGImagePropertyTIFFDictionary: [kCGImagePropertyTIFFMake: "Apple", kCGImagePropertyTIFFModel: "iPhone 17 Pro"],
   kCGImagePropertyExifDictionary: [kCGImagePropertyExifLensModel: "iPhone 17 Pro back triple camera 6.86mm f/1.78",

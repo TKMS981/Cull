@@ -8,6 +8,7 @@ enum Route: Hashable {
     case trash
     case kept
     case storage
+    case similar
 }
 
 /// A fixed list of items to cull, e.g. "videos, biggest first". Compared by `id` so a
@@ -203,7 +204,7 @@ struct FilterSetupView: View {
         }
     }
 
-    /// Space freed so far, and the storage tool.
+    /// Space freed so far, and the storage / similar-photo tools.
     private var toolsSection: some View {
         Section {
             if store.deletedCount > 0 {
@@ -211,6 +212,9 @@ struct FilterSetupView: View {
             }
             toolRow("ストレージを分析", systemImage: "chart.bar.xaxis", tint: .blue, identifier: "storageButton") {
                 path.append(.storage)
+            }
+            toolRow("似た写真を探す", systemImage: "square.on.square", tint: .purple, identifier: "similarButton") {
+                path.append(.similar)
             }
         } header: {
             Text("容量を空ける")

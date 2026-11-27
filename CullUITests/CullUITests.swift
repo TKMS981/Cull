@@ -503,6 +503,47 @@ final class CullUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(remaining(progress), 1)
     }
 
+    /// A scan of recent photos finds the seeded near-duplicate pair; applying the
+    /// suggestion sends one to Cull's trash and keeps the other.
+    @MainActor
+    func testSimilarPhotosFindsGroupAndSendsExtraToTrash() throws {
+        try openFromSetup("similarButton")
+        let scan = app.buttons["similarScanButton"]
+        XCTAssertTrue(scan.waitForExistence(timeout: 5))
+        expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: scan)
+        waitForExpectations(timeout: 10)
+        scan.tap()
+
+        let group = app.buttons.matching(identifier: "similarGroup").firstMatch
+        XCTAssertTrue(group.waitForExistence(timeout: 30), "seed includes a near-duplicate pair")
+        group.tap()
+
+        let tiles = app.buttons.matching(identifier: "similarTile")
+        XCTAssertTrue(tiles.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertGreaterThanOrEqual(tiles.count, 2)
+        // Tapping flips a mark; tapping again flips it back.
+        let first = tiles.element(boundBy: 0)
+        let before = first.value as? String
+        first.tap()
+        expectation(for: NSPredicate(format: "value != %@", before ?? ""), evaluatedWith: first)
+        waitForExpectations(timeout: 5)
+        first.tap()
+        expectation(for: NSPredicate(format: "value == %@", before ?? ""), evaluatedWith: first)
+        waitForExpectations(timeout: 5)
+
+        app.buttons["similarApplyButton"].tap()
+        // Back to the setup screen: one item is in Cull's trash now.
+        let start = app.buttons["startButton"]
+        for _ in 0..<3 where !start.exists {
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            _ = start.waitForExistence(timeout: 2)
+        }
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        let trash = app.buttons["setupTrashButton"]
+        expectation(for: NSPredicate(format: "value BEGINSWITH '1'"), evaluatedWith: trash)
+        waitForExpectations(timeout: 5)
+    }
+
     @MainActor
     private func openFromSetup(_ identifier: String) throws {
         launch()
