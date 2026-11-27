@@ -11,9 +11,12 @@ final class CullUITests: XCTestCase {
     }
 
     @MainActor
-    private func launch(extraArguments: [String] = []) {
+    private func launch(extraArguments: [String] = [], pinSortOrder: Bool = true) {
         app = XCUIApplication()
-        app.launchArguments = ["-UITestInMemoryStore"] + extraArguments
+        // The argument domain overrides the persisted sort order, so a test that changes
+        // it can't leak into the others (which expect the default, newest first).
+        let sort = pinSortOrder ? ["-sortOrder", "newest"] : []
+        app.launchArguments = ["-UITestInMemoryStore"] + sort + extraArguments
         addUIInterruptionMonitor(withDescription: "Photos permission") { alert in
             for label in ["Allow Full Access", "フルアクセスを許可", "Allow Access to All Photos", "すべての写真へのアクセスを許可"] {
                 let button = alert.buttons[label]
@@ -348,7 +351,7 @@ final class CullUITests: XCTestCase {
     /// over the same items as the date orders.
     @MainActor
     func testLargestFirstSortStartsSession() throws {
-        launch()
+        launch(pinSortOrder: false)
         let start = app.buttons["startButton"]
         XCTAssertTrue(start.waitForExistence(timeout: 10))
         expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: start)
@@ -371,6 +374,83 @@ final class CullUITests: XCTestCase {
         let progress = app.descendants(matching: .any)["progress"]
         XCTAssertTrue(progress.waitForExistence(timeout: 5))
         XCTAssertGreaterThan(remaining(progress), 0)
+    }
+
+    /// Kept items show in a grid; selecting one and un-keeping it puts it back in the unsorted pool.
+    @MainActor
+    func testKeptListUnkeepAndSendToTrash() throws {
+        let (_, progress) = try startCulling()
+        let initial = remaining(progress)
+        XCTAssertGreaterThan(initial, 2)
+        app.buttons["keepButton"].tap()
+        waitFor(progress, value: "\(initial - 1)")
+        app.buttons["keepButton"].tap()
+        waitFor(progress, value: "\(initial - 2)")
+        app.buttons["BackButton"].tap()
+
+        let keptList = app.buttons["keptListButton"]
+        XCTAssertTrue(app.buttons["startButton"].waitForExistence(timeout: 5))
+        for _ in 0..<4 where !keptList.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        keptList.tap()
+
+        let cells = app.buttons.matching(identifier: "keptCell")
+        expectation(for: NSPredicate(format: "count == 2"), evaluatedWith: cells)
+        waitForExpectations(timeout: 10)
+
+        app.buttons["keptSelectButton"].tap()
+        XCTAssertTrue(app.buttons["unkeepButton"].waitForExistence(timeout: 5))
+        cells.element(boundBy: 0).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        app.buttons["unkeepButton"].tap()
+        expectation(for: NSPredicate(format: "count == 1"), evaluatedWith: cells)
+        waitForExpectations(timeout: 5)
+
+        cells.element(boundBy: 0).coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        app.buttons["keptToTrashButton"].tap()
+        expectation(for: NSPredicate(format: "count == 0"), evaluatedWith: cells)
+        waitForExpectations(timeout: 5)
+
+        // One went back to unsorted, one to Cull's trash.
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let start = app.buttons["startButton"]
+        expectation(for: NSPredicate(format: "label CONTAINS %@", " \(initial - 1) "), evaluatedWith: start)
+        waitForExpectations(timeout: 5)
+        XCTAssertTrue((app.buttons["setupTrashButton"].value as? String ?? "").hasPrefix("1"))
+    }
+
+    /// Resetting by attribute only un-keeps matching items.
+    @MainActor
+    func testResetKeptByAttribute() throws {
+        let (_, progress) = try startCulling(attribute: "livePhoto")
+        let total = remaining(progress)
+        XCTAssertGreaterThanOrEqual(total, 1)
+        app.buttons["keepButton"].tap()
+        waitFor(progress, value: "\(total - 1)")
+        app.buttons["BackButton"].tap()
+
+        let reset = app.buttons["resetKeptButton"]
+        XCTAssertTrue(app.buttons["startButton"].waitForExistence(timeout: 5))
+        for _ in 0..<4 where !reset.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        reset.tap()
+
+        let segment = app.segmentedControls["resetScopePicker"].buttons.element(boundBy: 1)
+        XCTAssertTrue(segment.waitForExistence(timeout: 5))
+        segment.tap()
+        let confirm = app.buttons["confirmResetKeptButton"]
+
+        // Videos only: the kept Live Photo doesn't match.
+        app.buttons["resetAttribute.video"].tap()
+        expectation(for: NSPredicate(format: "isEnabled == false"), evaluatedWith: confirm)
+        waitForExpectations(timeout: 5)
+
+        // Live Photos: it does.
+        app.buttons["resetAttribute.video"].tap()
+        app.buttons["resetAttribute.livePhoto"].tap()
+        expectation(for: NSPredicate(format: "isEnabled == true AND label CONTAINS '1'"), evaluatedWith: confirm)
+        waitForExpectations(timeout: 5)
+        confirm.tap()
+
+        XCTAssertFalse(confirm.waitForExistence(timeout: 2))
+        XCTAssertFalse(reset.isEnabled, "nothing kept any more")
     }
 
     /// Quick-start presets set the filter in one tap and clear it on a second tap.

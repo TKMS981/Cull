@@ -92,14 +92,19 @@ final class PhotoLibraryService {
     }
 
     /// Matches for `filter` minus the given IDs (kept/trashed), off the main actor.
-    /// Uses a predicate-filtered identifier fetch for the library case so it never
-    /// enumerates the whole library; an album still has to be walked.
+    /// The library case walks only the excluded IDs, so it never enumerates the whole
+    /// library; an album still has to be walked.
     @concurrent
     nonisolated static func count(matching filter: CullFilter, excluding excluded: Set<String>) async -> Int {
         let total = filter.fetchAssets()
         guard !excluded.isEmpty, total.count > 0 else { return total.count }
         if filter.albumID == nil {
-            let overlap = PHAsset.fetchAssets(withLocalIdentifiers: Array(excluded), options: filter.fetchOptions).count
+            // Only the excluded IDs are walked, tested in Swift: an identifier fetch
+            // doesn't reliably apply the subtype bitmask predicate.
+            var overlap = 0
+            PHAsset.fetchAssets(withLocalIdentifiers: Array(excluded), options: nil).enumerateObjects { asset, _, _ in
+                if filter.matches(asset) { overlap += 1 }
+            }
             return max(total.count - overlap, 0)
         }
         var count = 0

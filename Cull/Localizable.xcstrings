@@ -12,6 +12,29 @@
         }
       }
     },
+    "%lld 件の保持を解除" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Unkeep %lld Item"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Unkeep %lld Items"
+                }
+              }
+            }
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "%lld 件を整理しました。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -135,6 +158,17 @@
         }
       }
     },
+    "すべて" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "すべての写真" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -222,6 +256,17 @@
           }
         }
       }
+    },
+    "キャンセル" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "クイックスタート" : {
       "extractionState" : "stale",
@@ -487,6 +532,39 @@
         }
       }
     },
+    "保持した写真はありません" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Kept Photos"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "保持を解除" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unkeep"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "保持済み" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kept"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "保持済み: %lld 件" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -497,6 +575,17 @@
           }
         }
       }
+    },
+    "保持済みの写真を見る" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View Kept Photos"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "保留" : {
       "localizations" : {
@@ -698,7 +787,6 @@
       }
     },
     "属性" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -706,7 +794,8 @@
             "value" : "Attributes"
           }
         }
-      }
+      },
+      "extractionState" : "manual"
     },
     "履歴をリセット" : {
       "extractionState" : "stale",
@@ -718,6 +807,17 @@
           }
         }
       }
+    },
+    "左にスワイプした写真がここに表示されます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos you swipe left appear here."
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "情報" : {
       "extractionState" : "stale",
@@ -784,6 +884,17 @@
           }
         }
       }
+    },
+    "整理済み履歴をリセット…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset Sorting History…"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "整理済み履歴をリセットしますか？" : {
       "extractionState" : "stale",
@@ -872,6 +983,17 @@
           }
         }
       }
+    },
+    "条件を指定してリセット" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset by Criteria"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "機種" : {
       "extractionState" : "stale",
@@ -983,6 +1105,17 @@
         }
       }
     },
+    "該当する写真はありません" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Matching Photos"
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "読み込み中…" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -994,6 +1127,28 @@
         }
       }
     },
+    "選んだアルバムに含まれる保持済みの写真だけをリセットします。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only kept photos in the chosen album are reset."
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
+    "選んだ属性のいずれかに当てはまる保持済みの写真だけをリセットします。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only kept photos matching any of the chosen attributes are reset."
+          }
+        }
+      },
+      "extractionState" : "manual"
+    },
     "選択" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1004,6 +1159,17 @@
           }
         }
       }
+    },
+    "選択してください" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose"
+          }
+        }
+      },
+      "extractionState" : "manual"
     },
     "選択しない場合は写真・ビデオ・Live Photos すべてが対象です。複数選択するといずれかに当てはまるものが対象になります。" : {
       "extractionState" : "stale",

@@ -445,3 +445,49 @@ struct SkipTests {
         #expect(SwipeRules.cardOffset(CGSize(width: 0, height: 100), axis: .vertical).height == 60)
     }
 }
+
+@Suite("Kept list actions", .serialized)
+struct KeptActionTests {
+    @Test func unkeepingASubsetLeavesTheRestKept() throws {
+        let store = DecisionStore(container: try DecisionStore.makeContainer(inMemory: true))
+        store.record(.keep, for: ["shot1", "shot2", "video1", "photo1"])
+        store.record(.trash, for: "t")
+        store.clear(ids: ["shot1", "shot2"])      // e.g. "screenshots only"
+        #expect(store.keptIDs == ["video1", "photo1"])
+        #expect(store.trashedIDs == ["t"], "trash untouched")
+    }
+
+    @Test func sendingKeptItemsToTrashMovesThem() throws {
+        let store = DecisionStore(container: try DecisionStore.makeContainer(inMemory: true))
+        store.record(.keep, for: ["a", "b", "c"])
+        store.record(.trash, for: ["a", "c"])
+        #expect(store.keptIDs == ["b"])
+        #expect(Set(store.trash.map(\.id)) == ["a", "c"])
+    }
+}
+
+/// Swift-side matching (used for identifier fetches) must agree with the fetch predicate.
+@Suite("CullFilter Swift matching")
+struct CullFilterMatchingTests {
+    @Test func attributesMatchLikeThePredicate() {
+        let live = PHAssetMediaSubtype.photoLive
+        #expect(CullFilter(attributes: [.livePhoto]).matches(mediaType: .image, subtypes: live, isFavorite: false, creationDate: nil))
+        #expect(!CullFilter(attributes: [.video]).matches(mediaType: .image, subtypes: live, isFavorite: false, creationDate: nil))
+        #expect(CullFilter(attributes: [.video, .screenshot]).matches(mediaType: .video, subtypes: [], isFavorite: false, creationDate: nil))
+        #expect(CullFilter(attributes: [.favorite]).matches(mediaType: .image, subtypes: [], isFavorite: true, creationDate: nil))
+        #expect(CullFilter().matches(mediaType: .image, subtypes: [], isFavorite: false, creationDate: nil))
+        #expect(!CullFilter().matches(mediaType: .audio, subtypes: [], isFavorite: false, creationDate: nil))
+    }
+
+    @Test func datesUseTheSameInclusiveDays() throws {
+        let calendar = Calendar.current
+        let day = try #require(calendar.date(from: DateComponents(year: 2026, month: 3, day: 10, hour: 15)))
+        let filter = CullFilter(dateRange: day...day)
+        let start = calendar.startOfDay(for: day)
+        let next = try #require(calendar.date(byAdding: .day, value: 1, to: start))
+        #expect(filter.matches(mediaType: .image, subtypes: [], isFavorite: false, creationDate: start))
+        #expect(filter.matches(mediaType: .image, subtypes: [], isFavorite: false, creationDate: next.addingTimeInterval(-1)))
+        #expect(!filter.matches(mediaType: .image, subtypes: [], isFavorite: false, creationDate: next))
+        #expect(!filter.matches(mediaType: .image, subtypes: [], isFavorite: false, creationDate: nil))
+    }
+}

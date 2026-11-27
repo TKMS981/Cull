@@ -4,6 +4,7 @@ import SwiftUI
 enum Route: Hashable {
     case cull(CullFilter, sort: CullSort, includeKept: Bool)
     case trash
+    case kept
 }
 
 /// Launch screen: choose what to cull, plus kept-history settings.
@@ -21,7 +22,7 @@ struct FilterSetupView: View {
     @State private var endDate = Date.now
     @State private var attributes: Set<MediaAttribute> = []
     @State private var matchCount = 0
-    @State private var confirmReset = false
+    @State private var showReset = false
     /// The large title has scrolled away, so the bar shows the compact wordmark.
     @State private var isTitleCollapsed = false
 
@@ -77,11 +78,7 @@ struct FilterSetupView: View {
                 await updateCount()
             }
         }
-        .confirmationDialog("整理済み履歴をリセットしますか？", isPresented: $confirmReset, titleVisibility: .visible) {
-            Button("履歴をリセット", role: .destructive) { store.resetKept() }
-        } message: {
-            Text("「保持」にした \(store.keptIDs.count) 件が再び整理対象になります。ゴミ箱の内容は変わりません。")
-        }
+        .sheet(isPresented: $showReset) { KeptResetSheet() }
     }
 
     private struct CountKey: Hashable {
@@ -277,7 +274,24 @@ struct FilterSetupView: View {
         Section {
             Toggle("整理済み（保持）の写真も再表示する", isOn: $includeKept)
                 .accessibilityIdentifier("includeKeptToggle")
-            Button("整理済み履歴をリセット", role: .destructive) { confirmReset = true }
+            Button {
+                path.append(.kept)
+            } label: {
+                HStack {
+                    Label("保持済みの写真を見る", systemImage: "checkmark.circle")
+                    Spacer()
+                    Text(store.keptIDs.count, format: .number)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.forward")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("keptListButton")
+            Button("整理済み履歴をリセット…", role: .destructive) { showReset = true }
                 .disabled(store.keptIDs.isEmpty)
                 .accessibilityIdentifier("resetKeptButton")
         } header: {

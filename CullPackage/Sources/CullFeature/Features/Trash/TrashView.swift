@@ -57,11 +57,18 @@ struct TrashView: View {
         }
         .fullScreenCover(item: $preview) { item in
             if let asset = assets[item.id] {
-                TrashPreviewView(
+                AssetPreviewView(
                     asset: asset,
                     size: sizes[item.id],
-                    onRestore: { restore(ids: [item.id]) },
-                    onDelete: { await delete(ids: [item.id]) }
+                    primary: .init(title: "元に戻す", systemImage: "arrow.uturn.backward", identifier: "previewRestoreButton") {
+                        restore(ids: [item.id])
+                    },
+                    // Closes itself on success (see delete); stays open if the system dialog is cancelled.
+                    secondary: .init(title: "削除", systemImage: "trash", role: .destructive, identifier: "previewDeleteButton",
+                                     dismissesAfter: false) {
+                        await delete(ids: [item.id])
+                    },
+                    identifier: "trashPreview"
                 )
                 .navigationTransition(.zoom(sourceID: item.id, in: previewNamespace))
             }
@@ -83,29 +90,7 @@ struct TrashView: View {
                 preview = PreviewItem(id: id)
             }
         } label: {
-            Color.clear
-                .aspectRatio(1, contentMode: .fit)
-                .overlay { AssetImageView(asset: asset, contentMode: .fill) }
-                .clipped()
-                .overlay(alignment: .bottomLeading) {
-                    if asset.isVideo {
-                        Text(Duration.seconds(asset.duration), format: .time(pattern: .minuteSecond))
-                            .font(.caption2.weight(.semibold).monospacedDigit())
-                            .foregroundStyle(.white)
-                            .shadow(radius: 2)
-                            .padding(4)
-                    }
-                }
-                .overlay(alignment: .bottomTrailing) {
-                    if isSelecting {
-                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                            .font(.title3)
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(.white, isSelected ? Color.accentColor : .black.opacity(0.3))
-                            .padding(6)
-                    }
-                }
-                .opacity(isSelecting && !isSelected ? 0.75 : 1)
+            AssetGridThumbnail(asset: asset, isSelecting: isSelecting, isSelected: isSelected)
         }
         .buttonStyle(.plain)
         .matchedTransitionSource(id: id, in: previewNamespace)

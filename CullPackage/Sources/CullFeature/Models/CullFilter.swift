@@ -50,6 +50,20 @@ nonisolated public enum MediaAttribute: String, CaseIterable, Identifiable, Send
         }
     }
 
+    /// The same test as `predicate`, evaluated on an asset already in hand. Used for
+    /// identifier fetches, where PhotoKit doesn't reliably apply the subtype bitmask.
+    func matches(mediaType: PHAssetMediaType, subtypes: PHAssetMediaSubtype, isFavorite: Bool) -> Bool {
+        switch self {
+        case .screenshot: subtypes.contains(.photoScreenshot)
+        case .portrait: subtypes.contains(.photoDepthEffect)
+        case .livePhoto: subtypes.contains(.photoLive)
+        case .panorama: subtypes.contains(.photoPanorama)
+        case .hdr: subtypes.contains(.photoHDR)
+        case .video: mediaType == .video
+        case .favorite: isFavorite
+        }
+    }
+
     private static func subtype(_ subtype: PHAssetMediaSubtype) -> NSPredicate {
         NSPredicate(format: "(mediaSubtypes & %d) != 0", subtype.rawValue)
     }
@@ -88,6 +102,30 @@ nonisolated public struct CullFilter: Hashable, Sendable {
             parts.append(NSCompoundPredicate(orPredicateWithSubpredicates: ordered.map(\.predicate)))
         }
         return NSCompoundPredicate(andPredicateWithSubpredicates: parts)
+    }
+
+    /// The date range as the half-open day interval the predicate uses.
+    var dayInterval: Range<Date>? {
+        guard let dateRange else { return nil }
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: dateRange.lowerBound)
+        let end = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: dateRange.upperBound)) ?? dateRange.upperBound
+        return start..<max(end, start)
+    }
+
+    /// Media type, date and attribute clauses evaluated in Swift (album membership is
+    /// not checked). Mirrors `predicate`.
+    public func matches(mediaType: PHAssetMediaType, subtypes: PHAssetMediaSubtype, isFavorite: Bool, creationDate: Date?) -> Bool {
+        guard mediaType == .image || mediaType == .video else { return false }
+        if let interval = dayInterval {
+            guard let creationDate, interval.contains(creationDate) else { return false }
+        }
+        guard !attributes.isEmpty else { return true }
+        return attributes.contains { $0.matches(mediaType: mediaType, subtypes: subtypes, isFavorite: isFavorite) }
+    }
+
+    public func matches(_ asset: PHAsset) -> Bool {
+        matches(mediaType: asset.mediaType, subtypes: asset.mediaSubtypes, isFavorite: asset.isFavorite, creationDate: asset.creationDate)
     }
 
     /// Runs the fetch. Safe off the main actor: PhotoKit fetches are thread-safe.

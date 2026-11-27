@@ -41,6 +41,8 @@ public struct CullRootView: View {
                                 CullView(filter: filter, sort: sort, includeKept: includeKept)
                             case .trash:
                                 TrashView()
+                            case .kept:
+                                KeptView()
                             }
                         }
                 }
